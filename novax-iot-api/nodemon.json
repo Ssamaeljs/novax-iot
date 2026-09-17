@@ -1,0 +1,8 @@
+{
+  "watch": ["src", "config", "index.js", ".env"],
+  "ext": "js,json",
+  "ignore": ["node_modules", "logs", "public", "db/migrations", "db/seeders"],
+  "delay": "200ms",
+  "env": { "NODE_ENV": "development", "TZ": "America/Guayaquil" },
+  "legacyWatch": true
+}
