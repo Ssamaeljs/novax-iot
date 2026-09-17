@@ -1,0 +1,45 @@
+{
+  "name": "novax-iot-api",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "node --test",
+    "db:prepare": "node scripts/prepare-db.js",
+    "db:migrate": "node scripts/migrate.js up",
+    "db:undo": "node scripts/migrate.js down",
+    "db:down:to": "node scripts/migrate.js down:to",
+    "db:pending": "node scripts/migrate.js pending",
+    "db:executed": "node scripts/migrate.js executed",
+    "db:status": "node scripts/migrate.js status",
+    "db:reset": "node scripts/prepare-db.js --force-reset",
+    "db:reseed": "node scripts/prepare-db.js --reseed",
+    "dev": "npm run db:prepare && nodemon --inspect=9229 index.js",
+    "dev:migrate": "npm run db:migrate && npm run dev",
+    "db:backup": "node scripts/backup-db.js",
+    "prod:backup": "node scripts/backup-db.js",
+    "prod:migrate": "NODE_ENV=production node scripts/migrate.js up",
+    "prod:deploy": "ENV_FILE=.env ./scripts/prod-deploy.sh",
+    "start": "node index.js",
+    "docs:backend": "jsdoc -c jsdoc.json"
+  },
+  "keywords": [],
+  "author": "ssamaeljs",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.18.0",
+    "pg-hstore": "^2.3.4",
+    "sequelize": "^6.37.7",
+    "glob": "^10.4.5",
+    "umzug": "^3.8.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14",
+    "sequelize-cli": "^6.6.5"
+  }
+}

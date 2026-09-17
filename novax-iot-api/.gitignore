@@ -1,0 +1,9 @@
+node_modules/
+.env
+.env.*
+!.env.example
+coverage/
+db/backups/
+.last-prod-dump
+npm-debug.log*
+
