@@ -1,0 +1,88 @@
+<section class="hero">
+  <div class="hero-copy">
+    <p class="eyebrow"><span></span> PLATAFORMA DE GESTIÓN IoT</p>
+    <h1>Tu infraestructura.<br />Conectada y bajo <em>control.</em></h1>
+    <p class="intro">
+      Dispositivos distintos. Un mismo espacio para administrarlos, entender sus
+      mediciones y trabajar con seguridad.
+    </p>
+    <div class="cluster">
+      <a class="button button--primary" routerLink="/app/overview"
+        >Abrir mi workspace <app-icon name="arrow" /></a
+      ><a class="button" routerLink="/auth/register">Crear una organización</a>
+    </div>
+    <p class="footnote">
+      <app-icon name="shield" /> Acceso por roles · Trazabilidad · Identidad
+      multitenant
+    </p>
+  </div>
+  <div
+    class="architecture card"
+    aria-label="Esquema conceptual de la plataforma, no representa dispositivos en vivo"
+  >
+    <div class="diagram-heading">
+      <span>UN ENTORNO. MÚLTIPLES DISPOSITIVOS.</span><app-icon name="layers" />
+    </div>
+    <div class="hub">
+      <app-icon name="layers" />
+      <div><strong>Novax IoT</strong><small>Centro de gestión</small></div>
+      <span class="badge" data-status="INFO">Plataforma</span>
+    </div>
+    <div class="connection" aria-hidden="true"></div>
+    <div class="nodes">
+      <div>
+        <app-icon name="device" /><strong>Dispositivos</strong
+        ><small>MQTT · HTTP</small>
+      </div>
+      <div>
+        <app-icon name="sensor" /><strong>Sensores</strong
+        ><small>Métricas · Unidades</small>
+      </div>
+      <div>
+        <app-icon name="camera" /><strong>Equipos IP</strong
+        ><small>Inventario ONVIF</small>
+      </div>
+    </div>
+    <div class="diagram-bottom">
+      <span><app-icon name="shield" /> Identidad y permisos</span
+      ><span><app-icon name="activity" /> Historial y auditoría</span>
+    </div>
+    <small class="diagram-caption"
+      >Esquema de organización · No es telemetría en vivo</small
+    >
+  </div>
+</section>
+<section class="platform">
+  <div class="section-title">
+    <div>
+      <p class="eyebrow">CLARIDAD EN CADA CAPA</p>
+      <h2>Del dispositivo a la decisión.</h2>
+    </div>
+    <p>
+      Operación, monitorización y administración.<br />Responsabilidades claras
+      en un solo producto.
+    </p>
+  </div>
+  <div class="capabilities">
+    @for (item of capabilities; track item.number) {
+    <article class="card card-body">
+      <div class="capability-top">
+        <span class="device-icon"><app-icon [name]="item.icon" /></span
+        ><small>{{ item.number }}</small>
+      </div>
+      <h3>{{ item.title }}</h3>
+      <p>{{ item.text }}</p>
+    </article>
+    }
+  </div>
+</section>
+<section class="closing">
+  <div>
+    <p class="eyebrow">PREPARADO PARA TU EQUIPO</p>
+    <h2>Menos fragmentación. Más visibilidad.</h2>
+    <p>Empieza por tu organización y construye un inventario confiable.</p>
+  </div>
+  <a class="button button--primary" routerLink="/auth/login"
+    >Ingresar a la plataforma <app-icon name="arrow"
+  /></a>
+</section>

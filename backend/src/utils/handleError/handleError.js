@@ -1,7 +1,9 @@
 const { ValidationError, UniqueConstraintError } = require("sequelize");
 
 function handleError(error, res) {
-  console.error(error);
+  // Never log ORM statements, values, password hashes or authentication tokens.
+  if (!error.isOperational)
+    console.error({ name: error.name, code: error.code || "INTERNAL_ERROR" });
 
   if (error.isOperational) {
     return res.status(error.status).json({

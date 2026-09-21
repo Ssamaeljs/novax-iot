@@ -14,17 +14,38 @@ const AppError = require("../../../utils/handleError/AppError");
 const { generateSessionToken } = require("../../../utils/security/apiToken");
 const { recordAudit } = require("../../module-audit/auditLogs/auditWriter");
 
-const DUMMY_PASSWORD_HASH = "$2b$12$zFp1nQJ6gqwMFHJVp2JEAu1zD/pl240sLKCf3zvpiyKQGBKhhA.mG";
+const DUMMY_PASSWORD_HASH =
+  "$2b$12$zFp1nQJ6gqwMFHJVp2JEAu1zD/pl240sLKCf3zvpiyKQGBKhhA.mG";
 
 const loginSchema = {
-  tenant_slug: { required: true, type: "string", lowercase: true, format: "slug", maxLength: 80 },
-  identifier: { required: true, type: "string", lowercase: true, minLength: 3, maxLength: 160 },
-  password: { required: true, type: "string", minLength: 1, maxLength: 128, trim: false },
+  tenant_slug: {
+    required: true,
+    type: "string",
+    lowercase: true,
+    format: "slug",
+    maxLength: 80,
+  },
+  identifier: {
+    required: true,
+    type: "string",
+    lowercase: true,
+    minLength: 3,
+    maxLength: 160,
+  },
+  password: {
+    required: true,
+    type: "string",
+    minLength: 1,
+    maxLength: 128,
+    trim: false,
+  },
 };
 
 function boundedInteger(value, fallback, minimum, maximum) {
   const parsed = Number.parseInt(value, 10);
-  return Number.isInteger(parsed) ? Math.min(Math.max(parsed, minimum), maximum) : fallback;
+  return Number.isInteger(parsed)
+    ? Math.min(Math.max(parsed, minimum), maximum)
+    : fallback;
 }
 
 function accountInclude() {
@@ -50,9 +71,13 @@ function accountInclude() {
 }
 
 function identityResponse(tenant, account, session, token) {
-  const permissionKeys = [...new Set(
-    account.roles.flatMap((role) => role.permissions.map((permission) => permission.key)),
-  )].sort();
+  const permissionKeys = [
+    ...new Set(
+      account.roles.flatMap((role) =>
+        role.permissions.map((permission) => permission.key),
+      ),
+    ),
+  ].sort();
 
   return {
     session: {
@@ -87,7 +112,12 @@ function identityResponse(tenant, account, session, token) {
 }
 
 function profileResponse(tenant, account) {
-  const response = identityResponse(tenant, account, { external_id: null, expires_at: null }, null);
+  const response = identityResponse(
+    tenant,
+    account,
+    { external_id: null, expires_at: null },
+    null,
+  );
   delete response.session;
   return response;
 }
@@ -99,13 +129,18 @@ class AuthService {
 
   async login(input, request = {}) {
     const payload = await this.validator.validate(loginSchema, input);
-    const tenant = await Tenant.findOne({ where: { slug: payload.tenant_slug, is_active: true } });
+    const tenant = await Tenant.findOne({
+      where: { slug: payload.tenant_slug, is_active: true },
+    });
     const account = tenant
       ? await Account.findOne({
           where: {
             tenant_id: tenant.id,
             is_active: true,
-            [Op.or]: [{ username: payload.identifier }, { email: payload.identifier }],
+            [Op.or]: [
+              { username: payload.identifier },
+              { email: payload.identifier },
+            ],
           },
           include: accountInclude(),
         })
@@ -119,16 +154,43 @@ class AuthService {
     const isLocked = account?.locked_until && account.locked_until > now;
 
     if (!account || !passwordMatches || isLocked) {
-      if (account) await this.#registerFailedLogin(account, request, isLocked ? "locked" : "invalid_credentials");
+      if (account)
+        await this.#registerFailedLogin(
+          account,
+          request,
+          isLocked ? "locked" : "invalid_credentials",
+        );
       throw new AppError("Credenciales inválidas", 401, "INVALID_CREDENTIALS");
     }
 
-    const ttlMinutes = boundedInteger(process.env.SESSION_TTL_MINUTES, 480, 15, 10080);
+    const ttlMinutes = boundedInteger(
+      process.env.SESSION_TTL_MINUTES,
+      480,
+      15,
+      10080,
+    );
     const expiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000);
     const generated = generateSessionToken();
 
     return sequelize.transaction(async (transaction) => {
-      await account.update(
+      // Serialize session issuance with password changes/recovery, then recheck the verified hash.
+      const current = await Account.findOne({
+        where: { id: account.id, is_active: true },
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      if (
+        !current ||
+        current.password_hash !== account.password_hash ||
+        (current.locked_until && current.locked_until > new Date())
+      ) {
+        throw new AppError(
+          "Credenciales inválidas",
+          401,
+          "INVALID_CREDENTIALS",
+        );
+      }
+      await current.update(
         { failed_login_attempts: 0, locked_until: null, last_login_at: now },
         { transaction },
       );
@@ -172,16 +234,29 @@ class AuthService {
 
   async logout(context = {}) {
     if (context.auth?.type !== "session" || !context.auth.sessionId) {
-      throw new AppError("El cierre de sesión requiere una sesión de usuario", 422, "SESSION_REQUIRED");
+      throw new AppError(
+        "El cierre de sesión requiere una sesión de usuario",
+        422,
+        "SESSION_REQUIRED",
+      );
     }
 
     return sequelize.transaction(async (transaction) => {
       const session = await Session.findOne({
-        where: { id: context.auth.sessionId, tenant_id: context.auth.tenantId, revoked_at: null },
+        where: {
+          id: context.auth.sessionId,
+          tenant_id: context.auth.tenantId,
+          revoked_at: null,
+        },
         transaction,
         lock: transaction.LOCK.UPDATE,
       });
-      if (!session) throw new AppError("Sesión inválida o expirada", 401, "INVALID_SESSION");
+      if (!session)
+        throw new AppError(
+          "Sesión inválida o expirada",
+          401,
+          "INVALID_SESSION",
+        );
 
       await session.update({ revoked_at: new Date() }, { transaction });
       await recordAudit({
@@ -197,7 +272,11 @@ class AuthService {
 
   async me(context = {}) {
     const account = await Account.findOne({
-      where: { id: context.auth.accountId, tenant_id: context.auth.tenantId, is_active: true },
+      where: {
+        id: context.auth.accountId,
+        tenant_id: context.auth.tenantId,
+        is_active: true,
+      },
       include: accountInclude(),
       transaction: context.transaction,
     });
@@ -205,7 +284,8 @@ class AuthService {
       where: { id: context.auth.tenantId, is_active: true },
       transaction: context.transaction,
     });
-    if (!account || !tenant) throw new AppError("Identidad no disponible", 401, "INVALID_IDENTITY");
+    if (!account || !tenant)
+      throw new AppError("Identidad no disponible", 401, "INVALID_IDENTITY");
 
     await recordAudit({
       context,
@@ -219,8 +299,18 @@ class AuthService {
   }
 
   async #registerFailedLogin(account, request, reason) {
-    const maxAttempts = boundedInteger(process.env.LOGIN_MAX_ATTEMPTS, 5, 3, 20);
-    const lockMinutes = boundedInteger(process.env.LOGIN_LOCK_MINUTES, 15, 1, 1440);
+    const maxAttempts = boundedInteger(
+      process.env.LOGIN_MAX_ATTEMPTS,
+      5,
+      3,
+      20,
+    );
+    const lockMinutes = boundedInteger(
+      process.env.LOGIN_LOCK_MINUTES,
+      15,
+      1,
+      1440,
+    );
 
     await sequelize.transaction(async (transaction) => {
       const current = await Account.findByPk(account.id, {
@@ -228,9 +318,10 @@ class AuthService {
         lock: transaction.LOCK.UPDATE,
       });
       const attempts = current.failed_login_attempts + 1;
-      const lockedUntil = attempts >= maxAttempts
-        ? new Date(Date.now() + lockMinutes * 60 * 1000)
-        : current.locked_until;
+      const lockedUntil =
+        attempts >= maxAttempts
+          ? new Date(Date.now() + lockMinutes * 60 * 1000)
+          : current.locked_until;
       await current.update(
         { failed_login_attempts: attempts, locked_until: lockedUntil },
         { transaction },

@@ -1,0 +1,226 @@
+:host {
+  display: block;
+  max-width: 1280px;
+  margin: auto;
+}
+.hero {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  align-items: center;
+  gap: 4rem;
+  padding: 6rem 3rem 5rem;
+}
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.65rem;
+  letter-spacing: 0.14em;
+  color: var(--primary);
+  font-weight: 700;
+}
+.eyebrow > span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.hero h1 {
+  font-size: clamp(2.4rem, 4.5vw, 3.7rem);
+  line-height: 1.09;
+  margin: 1.5rem 0;
+  letter-spacing: -0.055em;
+}
+.hero em {
+  color: var(--primary);
+  font-style: normal;
+}
+.intro {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  max-width: 460px;
+  line-height: 1.8;
+  margin-bottom: 2rem;
+}
+.footnote {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-top: 1.5rem;
+}
+.architecture {
+  padding: 1.5rem;
+  box-shadow: var(--shadow-sm);
+}
+.diagram-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.58rem;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  margin-bottom: 1.7rem;
+}
+.hub {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 1.2rem;
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-md);
+  background: var(--primary-soft);
+}
+.hub > app-icon {
+  font-size: 2rem;
+  color: var(--primary);
+}
+.hub div {
+  display: grid;
+  flex: 1;
+}
+.hub strong {
+  font-size: 1.1rem;
+}
+.hub small {
+  font-size: 0.7rem;
+}
+.connection {
+  height: 2.4rem;
+  width: 1px;
+  background: var(--border-strong);
+  margin: auto;
+}
+.nodes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.65rem;
+}
+.nodes > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 1.1rem 0.3rem;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface-secondary);
+}
+.nodes app-icon {
+  font-size: 1.6rem;
+  color: var(--primary);
+}
+.nodes strong {
+  font-size: 0.72rem;
+}
+.nodes small {
+  font-size: 0.58rem;
+}
+.diagram-bottom {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  padding: 1.4rem 0 0.8rem;
+  font-size: 0.63rem;
+  color: var(--text-secondary);
+}
+.diagram-bottom span {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+.diagram-caption {
+  display: block;
+  text-align: center;
+  font-size: 0.6rem;
+}
+.platform {
+  padding: 2rem 3rem 4rem;
+}
+.platform h2,
+.closing h2 {
+  font-size: 1.7rem;
+  margin: 0.65rem 0;
+}
+.capabilities {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-top: 2rem;
+}
+.capability-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.6rem;
+}
+.capabilities h3 {
+  margin-bottom: 0.7rem;
+}
+.capabilities p {
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  line-height: 1.8;
+}
+.closing {
+  margin: 0 3rem 4rem;
+  padding: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface-secondary);
+}
+.closing p:not(.eyebrow) {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+@media (max-width: 1000px) {
+  .hero {
+    gap: 2rem;
+    padding: 3rem 2rem;
+  }
+  .hero h1 {
+    font-size: 2.7rem;
+  }
+  .platform {
+    padding: 2rem;
+  }
+  .closing {
+    margin: 0 2rem 2rem;
+  }
+}
+@media (max-width: 760px) {
+  .hero {
+    grid-template-columns: 1fr;
+    padding: 2.5rem 1rem;
+  }
+  .hero-copy {
+    max-width: 540px;
+  }
+  .architecture {
+    max-width: 550px;
+    width: 100%;
+  }
+  .capabilities {
+    grid-template-columns: 1fr;
+  }
+  .platform {
+    padding: 1rem;
+  }
+  .closing {
+    flex-direction: column;
+    align-items: flex-start;
+    margin: 2rem 1rem;
+  }
+  .section-title {
+    flex-wrap: wrap;
+  }
+  .hero h1 {
+    font-size: 2.65rem;
+  }
+}

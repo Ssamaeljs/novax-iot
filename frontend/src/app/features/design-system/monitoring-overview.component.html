@@ -1,0 +1,106 @@
+<section id="overview" class="section" aria-labelledby="page-title">
+  <div class="page-heading">
+    <div>
+      <div class="eyebrow">NOVAX / SISTEMA VISUAL</div>
+      <h1 id="page-title">Todo conectado. Bajo control.</h1>
+      <p class="subtitle">
+        Una base visual para monitorear tu infraestructura IoT.
+      </p>
+    </div>
+    <span class="badge" data-status="INFO"
+      ><app-icon name="layers" />Vista de componentes</span
+    >
+  </div>
+  <p class="preview-note">
+    <app-icon name="info" />Datos de ejemplo para evaluar la interfaz. Esta
+    vista no está conectada a dispositivos ni a la API.
+  </p>
+  <div class="metrics">
+    <article class="card metric">
+      <div class="metric-label">
+        Dispositivos registrados<app-icon name="device" />
+      </div>
+      <strong>128</strong><span>En 6 ubicaciones de ejemplo</span>
+      <div class="metric-foot">
+        <span class="metric-change">+12</span> durante este mes
+      </div>
+    </article>
+    <article class="card metric">
+      <div class="metric-label">Disponibilidad<app-icon name="signal" /></div>
+      <strong>98.4<span>%</span></strong
+      ><span>Conectividad de la infraestructura</span>
+      <div class="metric-foot">
+        <app-icon name="check" /><span>Dentro del objetivo</span>
+      </div>
+    </article>
+    <article class="card metric">
+      <div class="metric-label">
+        Mediciones recibidas<app-icon name="activity" />
+      </div>
+      <strong>24.8<span>k</span></strong
+      ><span>Muestras en las últimas 24 horas</span>
+      <div class="metric-foot">MQTT · HTTP · HTTPS</div>
+    </article>
+    <article class="card metric">
+      <div class="metric-label">
+        Alertas por revisar<app-icon name="bell" />
+      </div>
+      <strong>03</strong><span>Eventos que requieren atención</span>
+      <div class="metric-foot">
+        <span class="badge" data-status="WARNING">2 advertencias</span
+        ><span class="badge" data-status="CRITICAL">1 crítica</span>
+      </div>
+    </article>
+  </div>
+  <div class="monitoring-grid">
+    <article class="panel">
+      <div class="panel-heading">
+        <div>
+          <h2>Comportamiento ambiental</h2>
+          <p>Humedad relativa · Secretaría · Datos de ejemplo</p>
+        </div>
+        <span class="badge">Últimas 24 horas</span>
+      </div>
+      <div class="chart-body"><app-telemetry-chart [points]="telemetry" /></div>
+    </article>
+    <article class="panel health-panel">
+      <div class="panel-heading">
+        <h2>Estado de la red</h2>
+        <app-icon name="gateway" />
+      </div>
+      <div class="card-body">
+        <div class="health-value">126 <span>/ 128 nodos disponibles</span></div>
+        <div
+          class="health-bar"
+          role="meter"
+          aria-label="Nodos disponibles"
+          aria-valuemin="0"
+          aria-valuemax="128"
+          aria-valuenow="126"
+        >
+          <span></span>
+        </div>
+        <ul class="health-list">
+          <li>
+            <span><app-icon name="check" />En línea</span><strong>124</strong>
+          </li>
+          <li>
+            <span><app-icon name="warning" />Con advertencia</span
+            ><strong>2</strong>
+          </li>
+          <li>
+            <span><app-icon name="offline" />Sin conexión</span
+            ><strong>2</strong>
+          </li>
+        </ul>
+        <div class="health-footer">
+          <app-icon name="shield" /><span
+            >Ejemplo de conectividad<br /><strong
+              >Monitoreo de infraestructura</strong
+            ></span
+          >
+        </div>
+      </div>
+    </article>
+  </div>
+</section>

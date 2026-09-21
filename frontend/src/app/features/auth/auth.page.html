@@ -1,0 +1,103 @@
+<section class="auth-shell" [class.registration]="mode === 'register'">
+  <aside class="auth-context">
+    <span class="eyebrow">NOVAX IoT / ACCESO SEGURO</span>
+    <h2>Un espacio para<br />toda tu infraestructura.</h2>
+    <p>
+      Identidades, dispositivos y mediciones, conectados por una arquitectura
+      común.
+    </p>
+    <div class="security-item">
+      <app-icon name="shield" />
+      <div>
+        <strong>Tu organización, tu entorno</strong>
+        <p>
+          La información y los permisos se mantienen separados entre
+          organizaciones.
+        </p>
+      </div>
+    </div>
+    <div class="security-item">
+      <app-icon name="activity" />
+      <div>
+        <strong>Operaciones trazables</strong>
+        <p>Acciones registradas para un trabajo responsable y verificable.</p>
+      </div>
+    </div>
+    <a routerLink="/">Volver al inicio</a>
+  </aside>
+  <div class="card auth-card">
+    <p class="eyebrow">
+      {{ mode === 'register' ? 'NUEVA ORGANIZACIÓN' : 'TU WORKSPACE' }}
+    </p>
+    <h1>{{ headings[mode] }}</h1>
+    <p class="description">
+      @switch (mode) { @case ('login') { Utiliza las credenciales de tu
+      organización. } @case ('register') { Crearás una organización
+      independiente y serás su propietario. Para unirte a una existente,
+      solicita una cuenta a su administrador. } @case ('forgot-password') { Te
+      enviaremos un enlace de un solo uso al correo de tu cuenta. } @case
+      ('reset-password') { Al actualizar tu contraseña se cerrarán todas tus
+      sesiones activas. } }
+    </p>
+    @if (error()) {
+    <p class="alert" data-status="CRITICAL" role="alert">{{ error() }}</p>
+    } @if (message()) {
+    <p class="alert" data-status="INFO" role="status">{{ message() }}</p>
+    } @if (ready() && mode === 'register' &&
+    !capabilities().registration_enabled) {
+    <p class="alert" role="status">
+      El registro público aún no está habilitado. Contacta al administrador para
+      crear tu organización.
+    </p>
+    } @if (ready() && mode === 'forgot-password' &&
+    !capabilities().password_recovery_enabled) {
+    <p class="alert" role="status">
+      El envío de correos aún no está configurado. Contacta al administrador
+      para recuperar tu acceso.
+    </p>
+    }
+    <form [formGroup]="form" (ngSubmit)="submit()" class="stack">
+      <div class="auth-fields">
+        @for (field of fields; track field.key) {
+        <label class="field"
+          >{{ field.label }}<input
+            [type]="field.type"
+            [formControlName]="field.key"
+            [autocomplete]="field.autocomplete"
+            [attr.minlength]="field.min"
+            [attr.maxlength]="field.max"
+            [attr.aria-describedby]="field.key + '-help'"
+            [attr.aria-invalid]="form.controls[field.key].touched && form.controls[field.key].invalid"
+          />
+          <small [id]="field.key + '-help'"
+            >{{ field.help }}@if (form.controls[field.key].touched &&
+            form.controls[field.key].invalid) {
+            <span class="field-error">
+              Revisa este campo obligatorio{{ field.min ? ' (mínimo ' +
+              field.min + ' caracteres)' : '' }}.</span
+            >
+            }</small
+          ></label
+        >
+        }
+      </div>
+      @if (mode === 'login') {
+      <a class="recovery-link" routerLink="/auth/forgot-password"
+        >¿Olvidaste tu contraseña?</a
+      >
+      }<button
+        class="button button--primary"
+        type="submit"
+        [disabled]="busy() || unavailable() || (!ready() && mode !== 'login')"
+      >
+        @if (busy()) { <span class="loader" aria-hidden="true"></span> }{{
+        busy() ? 'Procesando…' : labels[mode] }}
+      </button>
+    </form>
+    <p class="auth-bottom">
+      @if (mode === 'login') { ¿Tu equipo aún no tiene un espacio?
+      <a routerLink="/auth/register">Crear organización</a> } @else {
+      <a routerLink="/auth/login">Volver a iniciar sesión</a> }
+    </p>
+  </div>
+</section>

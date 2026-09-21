@@ -5,12 +5,24 @@ function requirePermission(permission) {
   return (req, res, next) => {
     try {
       if (!req.auth) {
-        throw new AppError("Autenticación requerida", 401, "AUTHENTICATION_REQUIRED");
+        throw new AppError(
+          "Autenticación requerida",
+          401,
+          "AUTHENTICATION_REQUIRED",
+        );
       }
-      if (!req.auth.permissions?.has(permission) && !req.auth.permissions?.has("*")) {
-        throw new AppError("No tiene permisos para esta operación", 403, "PERMISSION_DENIED", {
-          permission,
-        });
+      if (
+        !req.auth.permissions?.has(permission) &&
+        !req.auth.permissions?.has("*")
+      ) {
+        throw new AppError(
+          "No tiene permisos para esta operación",
+          403,
+          "PERMISSION_DENIED",
+          {
+            permission,
+          },
+        );
       }
       return next();
     } catch (error) {
@@ -19,5 +31,16 @@ function requirePermission(permission) {
   };
 }
 
-module.exports = { requirePermission };
-
+function requireRole(role) {
+  return (req, res, next) => {
+    if (!req.auth?.roles?.has(role))
+      return res
+        .status(403)
+        .json({
+          error: "Esta operación requiere el rol de propietario",
+          code: "ROLE_REQUIRED",
+        });
+    next();
+  };
+}
+module.exports = { requirePermission, requireRole };

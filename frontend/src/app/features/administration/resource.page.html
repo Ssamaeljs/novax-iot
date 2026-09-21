@@ -1,0 +1,341 @@
+<header class="section-title">
+  <div>
+    <p class="eyebrow">
+      {{ key === 'devices' || key === 'sensors' ? 'OPERACIÓN' : 'ADMINISTRACIÓN'
+      }}
+    </p>
+    <h1>{{ definition.title }}</h1>
+    <p>{{ definition.description }}</p>
+  </div>
+  @if (canManage()) {
+  <button class="button button--primary" (click)="open('create')">
+    <app-icon name="plus" />Crear registro
+  </button>
+  }
+</header>
+@if (notice()) {
+<p class="alert notice" data-status="SUCCESS" role="status">
+  {{ notice() }}<button
+    class="button button--ghost button--icon"
+    aria-label="Cerrar notificación"
+    (click)="notice.set('')"
+  >
+    <app-icon name="close" />
+  </button>
+</p>
+}
+<section class="panel">
+  <div class="panel-heading">
+    @if (!definition.noSearch) {
+    <form class="search-form" (ngSubmit)="load(true)">
+      <label class="sr-only" for="resource-search"
+        >Buscar {{ definition.title }}</label
+      ><input
+        id="resource-search"
+        type="search"
+        name="search"
+        [(ngModel)]="search"
+        placeholder="Buscar en el catálogo…"
+      /><button class="button" type="submit">
+        <app-icon name="search" /><span>Buscar</span>
+      </button>
+    </form>
+    } @else {
+    <form class="audit-filters" (ngSubmit)="load(true)">
+      <label class="field"
+        >Acción<select name="action" [(ngModel)]="auditAction">
+          <option value="">Todas las acciones</option>
+          @for (action of auditActions; track action) {
+          <option [value]="action">{{ action }}</option>
+          }
+        </select></label
+      ><label class="field"
+        >Resultado<select name="outcome" [(ngModel)]="auditOutcome">
+          <option value="">Todos</option>
+          <option value="SUCCESS">Correcto</option>
+          <option value="FAILURE">Fallido</option>
+        </select></label
+      ><button class="button" type="submit">Filtrar</button>
+    </form>
+    }<button
+      class="button button--ghost"
+      [disabled]="loading()"
+      (click)="load()"
+    >
+      <app-icon name="activity" />Actualizar
+    </button>
+  </div>
+  @if (loading()) {
+  <div class="empty-state" role="status">
+    <span class="loader"></span>Cargando registros…
+  </div>
+  } @else if (error()) {
+  <div class="empty-state">
+    <p class="alert" data-status="CRITICAL" role="alert">{{ error() }}</p>
+    <button class="button" (click)="load()">Reintentar</button>
+  </div>
+  } @else if (!rows().length) {
+  <div class="empty-state">
+    <app-icon name="layers" />
+    <h2>{{ search ? 'No hay coincidencias' : 'Aún no hay registros' }}</h2>
+    <p>
+      {{ search ? 'Prueba con otro término de búsqueda.' : 'Los registros de tu
+      organización aparecerán aquí.' }}
+    </p>
+  </div>
+  } @else {
+  <div
+    class="table-scroll"
+    tabindex="0"
+    [attr.aria-label]="'Tabla de ' + definition.title"
+  >
+    <table>
+      <caption class="sr-only">
+        {{ definition.title }}
+      </caption>
+      <thead>
+        <tr>
+          @for (column of definition.columns; track column.key) {
+          <th scope="col">{{ column.label }}</th>
+          }
+          <th scope="col">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of rows(); track row.external_id) {
+        <tr>
+          @for (column of definition.columns; track column.key) {
+          <td>
+            @if (column.key === 'status') {
+            <span class="badge" [attr.data-status]="value(row, column.key)"
+              >{{ display(row, column.key) }}</span
+            >
+            } @else {
+            <span class="cell-value">{{ display(row, column.key) }}</span> }
+          </td>
+          }
+          <td>
+            <div class="row-actions">
+              <button
+                class="button button--ghost"
+                (click)="open('detail', row)"
+                [attr.aria-label]="'Ver detalle de ' + label(row)"
+              >
+                Detalle</button
+              >@if (canAssign(row)) {
+              <button
+                class="button button--ghost"
+                (click)="open('assign', row)"
+              >
+                {{ key === 'accounts' ? 'Roles' : 'Permisos' }}
+              </button>
+              } @if (canManage() && !row['is_system']) {
+              <button
+                class="button button--ghost"
+                (click)="open('edit', row)"
+                [attr.aria-label]="'Editar ' + label(row)"
+              >
+                Editar</button
+              ><button
+                class="button button--ghost danger-text"
+                [disabled]="row['is_active'] === false || row.external_id === state.identity()?.account?.external_id"
+                (click)="open('delete', row)"
+              >
+                {{ key === 'api-tokens' ? 'Revocar' : 'Desactivar' }}
+              </button>
+              }
+            </div>
+          </td>
+        </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+  }
+  <div class="table-footer">
+    <span
+      >{{ total() }} registros · Página {{ page }} de {{ pages() || 1 }}</span
+    >
+    <nav class="pagination" aria-label="Paginación">
+      <button
+        class="button"
+        aria-label="Página anterior"
+        [disabled]="page <= 1 || loading()"
+        (click)="page = page - 1; load()"
+      >
+        Anterior</button
+      ><button
+        class="button"
+        aria-label="Página siguiente"
+        [disabled]="page >= pages() || loading()"
+        (click)="page = page + 1; load()"
+      >
+        Siguiente
+      </button>
+    </nav>
+  </div>
+</section>
+<dialog
+  #editor
+  aria-labelledby="editor-title"
+  (cancel)="saving() ? $event.preventDefault() : close()"
+  (close)="secret.set('')"
+>
+  <form [formGroup]="form" (ngSubmit)="save()">
+    <div class="dialog-content stack">
+      <div class="section-title">
+        <h2 id="editor-title">
+          @switch (mode()) { @case ('create') { Nuevo registro } @case ('edit')
+          { Editar registro } @case ('delete') { Confirmar {{ key ===
+          'api-tokens' ? 'revocación' : 'desactivación' }} } @case ('assign') {
+          Asignar {{ key === 'accounts' ? 'roles' : 'permisos' }} } @case
+          ('secret') { Guarda tu token de API } @default { Detalle del registro
+          } }
+        </h2>
+        <button
+          type="button"
+          class="button button--ghost button--icon"
+          [disabled]="saving()"
+          aria-label="Cerrar detalle"
+          (click)="close()"
+        >
+          <app-icon name="close" />
+        </button>
+      </div>
+      @if (editorError()) {
+      <p class="alert" data-status="CRITICAL" role="alert">
+        {{ editorError() }}
+      </p>
+      } @if (preparing()) {
+      <p role="status">Cargando opciones…</p>
+      } @switch (mode()) { @case ('detail') { @if (selected(); as record) {
+      <dl class="record-detail">
+        @for (column of definition.columns; track column.key) {
+        <dt>{{ column.label }}</dt>
+        <dd>{{ display(record, column.key) }}</dd>
+        }
+        <dt>Identificador público</dt>
+        <dd class="mono">{{ record.external_id }}</dd>
+      </dl>
+      <details>
+        <summary>Datos técnicos</summary>
+        <pre class="log-panel">{{ record | json }}</pre>
+      </details>
+      } } @case ('secret') {
+      <p class="alert" data-status="WARNING">
+        Este secreto se muestra una sola vez. Guárdalo en un gestor seguro. No
+        lo compartas ni lo incluyas en el código frontend.
+      </p>
+      <label class="field"
+        >Token generado<textarea
+          readonly
+          [value]="secret()"
+          spellcheck="false"
+        ></textarea>
+      </label>
+      } @case ('delete') {
+      <p>
+        Se {{ key === 'api-tokens' ? 'revocará el token' : 'desactivará el
+        registro' }}
+        <strong>{{ selected() ? label(selected()!) : '' }}</strong>. Esta
+        operación quedará registrada en la auditoría.
+      </p>
+      } @case ('assign') {
+      <div class="assignment-list">
+        @for (item of assignment(); track item.external_id) {
+        <label class="choice"
+          ><input
+            type="checkbox"
+            [checked]="selectedAssignments.includes(assignmentKey(item))"
+            (change)="toggleAssignment(assignmentKey(item), $any($event.target).checked)"
+          /><span
+            >{{ label(item) }}<small
+              >{{ item['code'] || item['key'] }}</small
+            ></span
+          ></label
+        >
+        }
+      </div>
+      } @default {
+      <div class="editor-fields">
+        @for (field of fields; track field.key) { @if (field.type === 'scopes')
+        {
+        <fieldset class="full-field">
+          <legend>{{ field.label }}</legend>
+          <div class="assignment-list">
+            @for (permission of state.identity()?.permissions || []; track
+            permission) {
+            <label class="choice"
+              ><input
+                type="checkbox"
+                [checked]="form.controls[field.key].value?.includes(permission)"
+                (change)="toggleScope(permission, $any($event.target).checked)"
+              />{{ permission }}</label
+            >
+            }
+          </div>
+          @if (form.controls[field.key].touched &&
+          form.controls[field.key].invalid) {
+          <small class="field-error">Selecciona al menos un permiso.</small> }
+        </fieldset>
+        } @else if (field.type === 'checkbox') {
+        <label class="choice"
+          ><input type="checkbox" [formControlName]="field.key" />{{ field.label
+          }}</label
+        >
+        } @else {
+        <label class="field"
+          >{{ field.label }}{{ field.required ? ' *' : '' }}@if (field.type ===
+          'select') {
+          <select [formControlName]="field.key">
+            <option value="">Seleccionar…</option>
+            @for (option of field.options || []; track option) {
+            <option [value]="option">{{ option }}</option>
+            } @for (item of choices()[field.key] || []; track item.external_id)
+            {
+            <option [value]="item.external_id">{{ label(item) }}</option>
+            }
+          </select>
+          } @else {
+          <input
+            [type]="field.type || 'text'"
+            [formControlName]="field.key"
+            [attr.autocomplete]="field.type === 'password' ? 'new-password' : 'off'"
+            [attr.step]="field.type === 'number' ? 'any' : null"
+            [attr.aria-invalid]="form.controls[field.key].touched && form.controls[field.key].invalid"
+          />
+          } @if (form.controls[field.key].touched &&
+          form.controls[field.key].invalid) {
+          <small class="field-error"
+            >Revisa el valor{{ field.minLength ? ' (mínimo ' + field.minLength +
+            ' caracteres)' : '' }}.</small
+          >
+          }</label
+        >
+        } }
+      </div>
+      } }
+    </div>
+    <div class="dialog-actions">
+      <button
+        type="button"
+        class="button"
+        [disabled]="saving()"
+        (click)="close()"
+      >
+        {{ mode() === 'detail' || mode() === 'secret' ? 'Cerrar' : 'Cancelar' }}</button
+      >@if (mode() !== 'detail' && mode() !== 'secret') {
+      <button
+        class="button"
+        [class.button--danger]="mode() === 'delete'"
+        [class.button--primary]="mode() !== 'delete'"
+        type="submit"
+        [disabled]="saving() || preparing()"
+      >
+        {{ saving() ? 'Guardando…' : mode() === 'delete' ? 'Confirmar' :
+        'Guardar' }}
+      </button>
+      }
+    </div>
+  </form>
+</dialog>

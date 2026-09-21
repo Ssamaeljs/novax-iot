@@ -5,7 +5,7 @@ import {
   writeResponseToNodeResponse,
 } from '@angular/ssr/node';
 import express from 'express';
-import { dirname, resolve } from 'node:path';
+import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const serverDistFolder = dirname(fileURLToPath(import.meta.url));
@@ -15,18 +15,6 @@ const app = express();
 const angularApp = new AngularNodeAppEngine();
 
 /**
- * Example Express Rest API endpoints can be defined here.
- * Uncomment and define endpoints as necessary.
- *
- * Example:
- * ```ts
- * app.get('/api/**', (req, res) => {
- *   // Handle API request
- * });
- * ```
- */
-
-/**
  * Serve static files from /browser
  */
 app.use(
@@ -34,6 +22,15 @@ app.use(
     maxAge: '1y',
     index: false,
     redirect: false,
+    setHeaders: (response, filePath) => {
+      // This pre-render entry is deliberately not hashed; revalidate it on each deployment.
+      if (basename(filePath) === 'theme-init.js') {
+        response.setHeader(
+          'Cache-Control',
+          'public, max-age=0, must-revalidate',
+        );
+      }
+    },
   }),
 );
 

@@ -7,6 +7,7 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
+    "test:theme": "node --test test/theme-contract.test.cjs",
     "serve:ssr:novax-iot-app": "node dist/novax-iot-app/server/server.mjs"
   },
   "private": true,

@@ -1,0 +1,332 @@
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  ElementRef,
+  inject,
+  OnInit,
+  signal,
+  viewChild,
+} from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
+import {
+  FormControl,
+  FormGroup,
+  FormsModule,
+  ReactiveFormsModule,
+  Validators,
+} from '@angular/forms';
+import { JsonPipe } from '@angular/common';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { firstValueFrom, Subscription } from 'rxjs';
+import { ApiService, Entity, errorMessage } from '../../core/api/api.service';
+import { AuthState } from '../../core/auth/auth-state.service';
+import { IconComponent } from '../../shared/ui/icon.component';
+import {
+  ResourceDefinition,
+  ResourceField,
+  resources,
+} from './resource-definitions';
+@Component({
+  imports: [FormsModule, ReactiveFormsModule, JsonPipe, IconComponent],
+  templateUrl: './resource.page.html',
+  styleUrl: './resource.page.css',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class ResourcePage implements OnInit {
+  readonly api = inject(ApiService);
+  readonly state = inject(AuthState);
+  private readonly route = inject(ActivatedRoute);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly dialog = viewChild<ElementRef<HTMLDialogElement>>('editor');
+  private request?: Subscription;
+  private generation = 0;
+  definition: ResourceDefinition = resources['devices'];
+  key = '';
+  search = '';
+  auditAction = '';
+  auditOutcome = '';
+  readonly auditActions = [
+    'LIST',
+    'READ',
+    'CREATE',
+    'UPDATE',
+    'DELETE',
+    'ASSIGN',
+    'BULK_CREATE',
+    'LOGIN',
+    'LOGOUT',
+    'REGISTER',
+    'PASSWORD_RECOVERY',
+    'PASSWORD_RESET',
+    'PASSWORD_CHANGE',
+    'BOOTSTRAP',
+  ];
+  page = 1;
+  readonly rows = signal<Entity[]>([]);
+  readonly total = signal(0);
+  readonly pages = signal(0);
+  readonly loading = signal(false);
+  readonly error = signal('');
+  readonly editorError = signal('');
+  readonly notice = signal('');
+  readonly saving = signal(false);
+  readonly preparing = signal(false);
+  readonly mode = signal<
+    'create' | 'edit' | 'delete' | 'detail' | 'assign' | 'secret'
+  >('detail');
+  readonly selected = signal<Entity | null>(null);
+  readonly choices = signal<Record<string, Entity[]>>({});
+  readonly secret = signal('');
+  readonly assignment = signal<Entity[]>([]);
+  selectedAssignments: string[] = [];
+  fields: ResourceField[] = [];
+  form = new FormGroup<Record<string, FormControl<any>>>({});
+  ngOnInit() {
+    this.route.data
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((data) => {
+        this.generation++;
+        this.key = data['resource'];
+        this.definition = resources[this.key];
+        this.search = '';
+        this.auditAction = '';
+        this.auditOutcome = '';
+        this.page = 1;
+        this.notice.set('');
+        this.close();
+        this.load();
+      });
+  }
+  canManage() {
+    return (
+      !this.definition.readOnly &&
+      this.state.has(`${this.definition.permission}.manage`)
+    );
+  }
+  canAssign(row: Entity) {
+    return (
+      this.state.has('roles.manage') &&
+      ((this.key === 'accounts' && this.state.has('roles.read')) ||
+        (this.key === 'roles' &&
+          !row['is_system'] &&
+          this.state.has('permissions.read')))
+    );
+  }
+  load(reset = false) {
+    if (reset) this.page = 1;
+    this.request?.unsubscribe();
+    this.loading.set(true);
+    this.error.set('');
+    this.rows.set([]);
+    this.request = this.api
+      .list(this.definition.endpoint, {
+        page: this.page,
+        page_size: 20,
+        ...(!this.definition.noSearch && this.search.trim()
+          ? { search: this.search.trim() }
+          : {}),
+        ...(this.key === 'audit' && this.auditAction
+          ? { action: this.auditAction }
+          : {}),
+        ...(this.key === 'audit' && this.auditOutcome
+          ? { outcome: this.auditOutcome }
+          : {}),
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result) => {
+          this.rows.set(result.data);
+          this.total.set(result.pagination.total);
+          this.pages.set(result.pagination.total_pages);
+          this.loading.set(false);
+        },
+        error: (error) => {
+          this.error.set(errorMessage(error));
+          this.total.set(0);
+          this.pages.set(0);
+          this.loading.set(false);
+        },
+      });
+  }
+  value(row: Entity, key: string): any {
+    return key.split('.').reduce((value, part) => value?.[part], row as any);
+  }
+  display(row: Entity, key: string): string {
+    const value = this.value(row, key);
+    if (value === null || value === undefined || value === '') return '—';
+    if (typeof value === 'boolean') return value ? 'Sí' : 'No';
+    if (Array.isArray(value))
+      return (
+        value.map((item) => item.name || item.key || item).join(', ') ||
+        'Sin asignar'
+      );
+    if (key.endsWith('_at'))
+      return new Date(value).toLocaleString('es', {
+        timeZone: this.state.identity()?.tenant.timezone,
+      });
+    return String(value);
+  }
+  label(row: Entity) {
+    return (
+      row['name'] ||
+      [row['first_name'], row['last_name']].filter(Boolean).join(' ') ||
+      row['username'] ||
+      row['key'] ||
+      row.external_id
+    );
+  }
+  close() {
+    this.generation++;
+    this.dialog()?.nativeElement.close();
+    this.secret.set('');
+    this.form.reset();
+  }
+  async open(
+    mode: 'create' | 'edit' | 'delete' | 'detail' | 'assign',
+    row: Entity | null = null,
+  ) {
+    const generation = ++this.generation;
+    this.mode.set(mode);
+    this.selected.set(row);
+    this.editorError.set('');
+    this.secret.set('');
+    this.choices.set({});
+    this.assignment.set([]);
+    this.preparing.set(false);
+    this.fields = this.definition.fields.filter(
+      (field) =>
+        !(mode === 'edit' && field.createOnly) &&
+        !(mode === 'create' && field.editOnly),
+    );
+    const controls: Record<string, FormControl<any>> = {};
+    for (const field of this.fields) {
+      controls[field.key] = new FormControl(
+        row?.[field.key] ??
+          field.default ??
+          (field.type === 'scopes' ? [] : ''),
+        [
+          ...(field.required ? [Validators.required] : []),
+          ...(field.minLength ? [Validators.minLength(field.minLength)] : []),
+          ...(field.type === 'email' ? [Validators.email] : []),
+          ...(field.type === 'number' && field.min !== undefined
+            ? [Validators.min(field.min)]
+            : []),
+          ...(field.max && field.type !== 'number'
+            ? [Validators.maxLength(field.max)]
+            : []),
+        ],
+      );
+    }
+    this.form = new FormGroup(controls);
+    this.dialog()!.nativeElement.showModal();
+    try {
+      this.preparing.set(true);
+      if (mode === 'assign' && row) {
+        const isAccount = this.key === 'accounts';
+        const options = await this.api.options(
+          isAccount ? 'iam/roles' : 'iam/permissions',
+          { is_active: true },
+        );
+        if (generation !== this.generation) return;
+        this.assignment.set(options);
+        this.selectedAssignments = (
+          row[isAccount ? 'roles' : 'permissions'] || []
+        ).map((item: Entity) => (isAccount ? item.external_id : item['key']));
+      } else if (mode === 'create' || mode === 'edit') {
+        const options: Record<string, Entity[]> = {};
+        for (const field of this.fields)
+          if (field.relation)
+            options[field.key] = await this.api.options(field.relation, {
+              is_active: true,
+            });
+        if (generation === this.generation) this.choices.set(options);
+      }
+    } catch (error) {
+      if (generation === this.generation)
+        this.editorError.set(errorMessage(error));
+    } finally {
+      if (generation === this.generation) this.preparing.set(false);
+    }
+  }
+  toggleScope(scope: string, checked: boolean) {
+    const current = this.form.controls['scopes'].value as string[];
+    this.form.controls['scopes'].setValue(
+      checked
+        ? [...current, scope]
+        : current.filter((value) => value !== scope),
+    );
+  }
+  assignmentKey(row: Entity): string {
+    return this.key === 'accounts' ? row.external_id : row['key'];
+  }
+  toggleAssignment(key: string, checked: boolean) {
+    this.selectedAssignments = checked
+      ? [...this.selectedAssignments, key]
+      : this.selectedAssignments.filter((value) => value !== key);
+  }
+  async save() {
+    if (this.saving() || this.preparing()) return;
+    const mode = this.mode();
+    const row = this.selected();
+    const generation = this.generation;
+    const endpoint = this.definition.endpoint;
+    if (!['create', 'edit', 'delete', 'assign'].includes(mode)) return;
+    if (mode === 'create' || mode === 'edit') {
+      this.form.markAllAsTouched();
+      if (this.form.invalid) return;
+    }
+    this.saving.set(true);
+    this.editorError.set('');
+    try {
+      let result: { data: Entity } | undefined;
+      if (mode === 'delete' && row)
+        await firstValueFrom(this.api.delete(`${endpoint}/${row.external_id}`));
+      else if (mode === 'assign' && row) {
+        if (this.key === 'accounts')
+          await firstValueFrom(
+            this.api.post(`${endpoint}/${row.external_id}/roles`, {
+              role_external_ids: this.selectedAssignments,
+            }),
+          );
+        else
+          await firstValueFrom(
+            this.api.put(`${endpoint}/${row.external_id}/permissions`, {
+              permission_keys: this.selectedAssignments,
+            }),
+          );
+      } else {
+        const payload = this.form.getRawValue();
+        for (const field of this.fields) {
+          if (payload[field.key] === '') {
+            if (field.nullable && mode === 'edit') payload[field.key] = null;
+            else delete payload[field.key];
+          } else if (field.type === 'number' && payload[field.key] !== null)
+            payload[field.key] = Number(payload[field.key]);
+        }
+        result = await firstValueFrom(
+          mode === 'create'
+            ? this.api.post(endpoint, payload)
+            : this.api.patch(`${endpoint}/${row!.external_id}`, payload),
+        );
+      }
+      if (generation !== this.generation) return;
+      this.notice.set(
+        mode === 'delete'
+          ? 'Registro desactivado o credencial revocada.'
+          : 'Cambios guardados correctamente.',
+      );
+      if (result?.data['token']) {
+        this.secret.set(result.data['token']);
+        this.mode.set('secret');
+        this.form.reset();
+      } else this.close();
+      this.load();
+    } catch (error) {
+      if (generation === this.generation)
+        this.editorError.set(errorMessage(error));
+    } finally {
+      this.saving.set(false);
+    }
+  }
+}

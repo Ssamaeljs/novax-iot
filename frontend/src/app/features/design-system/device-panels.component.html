@@ -1,0 +1,59 @@
+<section id="telemetry" class="section" aria-labelledby="telemetry-title">
+  <div class="section-title">
+    <div>
+      <h2 id="telemetry-title">Sensores, cámaras y conectividad</h2>
+      <p>Superficies especializadas para cada tipo de dispositivo.</p>
+    </div>
+  </div>
+  <div class="device-cards">
+    <article class="card sensor-card">
+      <div class="cluster">
+        <span class="device-icon"><app-icon name="drop" /></span>
+        <h3>Humedad ambiental</h3>
+      </div>
+      <p class="muted">Secretaría · ESP32-SEC-01</p>
+      <div class="sensor-reading">64.5 <span>% HR</span></div>
+      <div class="sensor-range">
+        <span>0%</span
+        ><progress
+          value="64.5"
+          max="100"
+          aria-label="Humedad relativa de ejemplo: 64.5%"
+        ></progress
+        ><span>100%</span>
+      </div>
+      <div class="card-end">
+        <app-status-badge status="ONLINE" /><small>Muestra de referencia</small>
+      </div>
+    </article>
+    <article class="card camera-card">
+      <div class="camera-placeholder">
+        <app-icon name="camera" /><span>Vista previa de cámara</span
+        ><small>Sin transmisión en esta muestra</small
+        ><span class="camera-corner mono">CAM-ACC-01</span>
+      </div>
+      <div class="camera-info">
+        <div>
+          <h3>Acceso principal</h3>
+          <small>ONVIF · 1920 × 1080</small>
+        </div>
+        <app-status-badge status="ONLINE" />
+      </div>
+    </article>
+    <article class="card sensor-card">
+      <div class="cluster">
+        <span class="device-icon"><app-icon name="gateway" /></span>
+        <h3>Gateway principal</h3>
+      </div>
+      <p class="muted">Sala de servidores · GW-CORE-01</p>
+      <div class="sensor-reading">24 <span>ms</span></div>
+      <div class="gateway-details">
+        <span>Protocolo<strong>HTTPS</strong></span
+        ><span>Nodos asociados<strong>32</strong></span>
+      </div>
+      <div class="card-end">
+        <app-status-badge status="ONLINE" /><small>Conexión de ejemplo</small>
+      </div>
+    </article>
+  </div>
+</section>

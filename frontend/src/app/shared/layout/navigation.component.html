@@ -1,0 +1,28 @@
+<a class="nav-brand" routerLink="/" (click)="selected.emit()"
+  ><app-icon name="layers" /><span>Novax <strong>IoT</strong></span></a
+>
+<nav aria-label="Navegación principal">
+  @for (group of groups; track group.label) {
+    @if (hasItems(group.items)) {
+      <div class="nav-group">
+        <p>{{ group.label }}</p>
+        @for (item of group.items; track item.path) {
+          @if (visible(item)) {
+            <a
+              [routerLink]="'/app/' + item.path"
+              routerLinkActive="active"
+              ariaCurrentWhenActive="page"
+              (click)="selected.emit()"
+              ><app-icon [name]="item.icon" />{{ item.label }}</a
+            >
+          }
+        }
+      </div>
+    }
+  }
+</nav>
+<div class="nav-bottom">
+  <app-icon name="shield" /><span
+    >Acceso por organización<br /><small>Sesión protegida</small></span
+  >
+</div>
