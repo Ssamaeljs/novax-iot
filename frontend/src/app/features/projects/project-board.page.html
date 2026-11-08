@@ -1,0 +1,79 @@
+<header class="section-title board-heading">
+  <div>
+    <h1>{{ project()?.title || 'Tablero del proyecto' }}</h1>
+    <p>{{ project()?.description }}</p>
+    <div class="cluster project-context">@if (project(); as current) { <span class="badge" data-status="INFO">{{ current.code }}</span> }
+      @if (dirty()) { <span class="badge" data-status="WARNING">Cambios sin guardar</span> }
+      @if (editing()) { <span class="badge" data-status="INFO">Modo edición</span> }
+    </div>
+  </div>
+  <div class="cluster board-actions">
+    @if (canEdit() && project()) {
+      <button class="button" [disabled]="saving() || loading()" (click)="toggleEditing()">{{ editing() ? 'Finalizar edición' : 'Editar tablero' }}</button>
+      @if (dirty()) { <button class="button button--primary" [disabled]="saving()" (click)="save()">{{ saving() ? 'Guardando…' : 'Guardar tablero' }}</button>
+        <button class="button" [disabled]="saving()" (click)="load()">Descartar cambios</button> }
+    }
+    <button class="button" [disabled]="loading()" [attr.aria-expanded]="sidebar()" aria-controls="widget-sidebar" (click)="togglePanel()">{{ sidebar() ? 'Cerrar panel' : 'Widgets' }}</button>
+  </div>
+</header>
+@if (error()) { <div class="alert board-alert" data-status="CRITICAL" role="alert">{{ error() }} <button class="button" [disabled]="saving()" (click)="load()">Recargar tablero</button></div> }
+@if (notice()) { <p class="alert board-alert" data-status="SUCCESS" role="status">{{ notice() }}</p> }
+@if (loading()) { <p class="empty-state" role="status">Cargando tablero…</p> }
+@else if (project()) {
+  <div class="panel toolbar">
+    <label class="field period">Periodo del histórico<select name="range" [(ngModel)]="range" (ngModelChange)="changeRange()" [disabled]="!state.has('measurements.read')"><option value="1h">Última hora</option><option value="6h">Últimas 6 horas</option><option value="24h">Últimas 24 horas</option><option value="7d">Últimos 7 días</option></select></label>
+    <div><button class="button" [disabled]="refreshing() || !state.has('measurements.read')" (click)="refresh()">{{ refreshing() ? 'Actualizando…' : 'Actualizar datos' }}</button><small>Actualización cada 30 s{{ updated() ? ' · ' + updated() : '' }}</small></div>
+    <p>Los indicadores muestran la última lectura. Las líneas temporales muestran hasta 200 muestras por sensor del periodo, sin agregación.</p>
+  </div>
+  @if (!state.has('measurements.read')) { <p class="alert board-alert" data-status="WARNING">Necesitas permiso para consultar mediciones y visualizar los datos de los sensores.</p> }
+  @if (dataError()) { <p class="alert board-alert" data-status="WARNING" role="alert">No se pudieron actualizar los datos: {{ dataError() }}</p> }
+  <div class="board-workspace" [class.with-sidebar]="sidebar()">
+    <section class="canvas-container" aria-label="Tablero de sensores">
+      @if (!widgets().length) {
+        <div class="empty-board panel"><h2>Tu tablero está listo para empezar</h2><p>Añade indicadores, históricos o widgets personalizados asociados a tus sensores.</p>
+          @if (canEdit()) { <button class="button button--primary" (click)="toggleEditing()">Añadir el primer widget</button> }
+          @else { <small>Un administrador puede configurar los widgets de este proyecto.</small> }
+        </div>
+      }
+      <div #canvas class="board-canvas" [class.editing]="editing()" [style.grid-template-rows]="'repeat(' + rows() + ', 48px)'">
+        @for (widget of widgets(); track widget.key) {
+          <article class="widget-card" [class.selected]="editing() && selectedKey() === widget.key" [class.locked]="widget.layout.locked" [style.grid-column]="(widget.layout.x + 1) + ' / span ' + widget.layout.width" [style.grid-row]="(widget.layout.y + 1) + ' / span ' + widget.layout.height" [attr.aria-label]="widget.title">
+            <header class="widget-heading">
+              @if (editing()) {
+                <button type="button" class="move-handle" [disabled]="widget.layout.locked || saving()" [attr.aria-label]="'Mover ' + widget.title + '. Usa las flechas del teclado.'" title="Arrastra o utiliza las flechas del teclado" (pointerdown)="startInteraction($event, widget, 'move')" (pointermove)="moveInteraction($event)" (pointerup)="endInteraction()" (pointercancel)="cancelInteraction()" (keydown)="keyInteraction($event, widget)">⠿</button>
+              }
+              <h2>{{ widget.title }}</h2>
+              @if (widget.layout.locked) { <span class="fixed-label">Fijo</span> }
+              @if (editing()) {
+                <div class="widget-tools"><button class="mini-button" [disabled]="saving()" (click)="select(widget)" [attr.aria-label]="'Configurar ' + widget.title">Editar</button>
+                <button class="mini-button" [disabled]="saving()" (click)="lock(widget)" [attr.aria-label]="(widget.layout.locked ? 'Desbloquear ' : 'Bloquear ') + widget.title">{{ widget.layout.locked ? 'Liberar' : 'Fijar' }}</button>
+                <button class="mini-button danger-text" [disabled]="saving()" (click)="remove(widget)" [attr.aria-label]="'Quitar ' + widget.title">×</button></div>
+              }
+            </header>
+            <div class="widget-content"><app-widget-view [widget]="widget" [telemetry]="telemetry()" [timezone]="state.identity()?.tenant?.timezone || 'America/Guayaquil'" /></div>
+            @if (editing()) {
+              <button type="button" class="resize-handle" [disabled]="widget.layout.locked || saving()" [attr.aria-label]="'Cambiar tamaño de ' + widget.title + '. Usa las flechas del teclado.'" title="Arrastra o utiliza las flechas del teclado" (pointerdown)="startInteraction($event, widget, 'resize')" (pointermove)="moveInteraction($event)" (pointerup)="endInteraction()" (pointercancel)="cancelInteraction()" (keydown)="keyInteraction($event, widget, true)">↘</button>
+            }
+          </article>
+        }
+      </div>
+    </section>
+    @if (sidebar()) {
+      <aside id="widget-sidebar" class="widget-sidebar panel" tabindex="-1" aria-label="Biblioteca y propiedades de widgets">
+        <div class="sidebar-heading"><h2>Widgets</h2><button class="mini-button" aria-label="Cerrar panel de widgets" (click)="sidebar.set(false)">×</button></div>
+        @if (editing() && canEdit()) {
+          <p class="sidebar-description">Añade un widget y configura sus sensores. Arrastra para mover, usa la esquina para redimensionar o introduce las coordenadas.</p>
+          @if (optionsError()) { <p class="field-error" role="alert">{{ optionsError() }}</p> }
+          <div class="widget-catalog">@for (item of catalog; track item.type) { <button class="catalog-item" [disabled]="saving()" (click)="add(item.type)"><strong>+ {{ item.title }}</strong><small>{{ item.description }}</small></button> }</div>
+          @if (!sensors().length) { <p class="sidebar-description">No hay sensores disponibles para configurar. <a routerLink="/app/operations/sensors">Consultar sensores</a></p> }
+          @if (selected(); as widget) { <app-widget-editor [widget]="widget" [sensors]="sensors()" [attr.inert]="saving() ? '' : null" (applied)="apply($event)" /> }
+          @if (dirty()) { <button class="button button--primary" [disabled]="saving()" (click)="save()">{{ saving() ? 'Guardando…' : 'Guardar tablero' }}</button> }
+        } @else {
+          <p class="sidebar-description">{{ widgets().length }} widgets instalados.</p>
+          @for (widget of widgets(); track widget.key) { <div class="installed-widget"><strong>{{ widget.title }}</strong><small>{{ widget.sensors.length }} sensores · {{ widget.type }}</small></div> }
+          @if (canEdit()) { <button class="button" (click)="toggleEditing()">Editar widgets</button> }
+        }
+      </aside>
+    }
+  </div>
+}

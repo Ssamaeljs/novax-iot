@@ -13,13 +13,13 @@ const DynamicValidator = require("../../../helpers/autoCrud/DynamicValidator");
 const AppError = require("../../../utils/handleError/AppError");
 const { generateSessionToken } = require("../../../utils/security/apiToken");
 const { recordAudit } = require("../../module-audit/auditLogs/auditWriter");
+const { resolveOrganization, assertOrganizationSlug, organizationScope } = require("../../../config/organization");
 
 const DUMMY_PASSWORD_HASH =
   "$2b$12$zFp1nQJ6gqwMFHJVp2JEAu1zD/pl240sLKCf3zvpiyKQGBKhhA.mG";
 
 const loginSchema = {
   tenant_slug: {
-    required: true,
     type: "string",
     lowercase: true,
     format: "slug",
@@ -129,9 +129,8 @@ class AuthService {
 
   async login(input, request = {}) {
     const payload = await this.validator.validate(loginSchema, input);
-    const tenant = await Tenant.findOne({
-      where: { slug: payload.tenant_slug, is_active: true },
-    });
+    const tenant = await resolveOrganization();
+    assertOrganizationSlug(payload.tenant_slug, tenant);
     const account = tenant
       ? await Account.findOne({
           where: {
@@ -281,7 +280,7 @@ class AuthService {
       transaction: context.transaction,
     });
     const tenant = await Tenant.findOne({
-      where: { id: context.auth.tenantId, is_active: true },
+      where: { id: context.auth.tenantId, ...organizationScope() },
       transaction: context.transaction,
     });
     if (!account || !tenant)

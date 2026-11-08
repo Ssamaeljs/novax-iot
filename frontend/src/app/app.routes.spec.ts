@@ -39,7 +39,7 @@ describe('Application routes and page contracts', () => {
       harness.routeNativeElement?.querySelector('a[href="/app/overview"]'),
     ).not.toBeNull();
   });
-  it('shows disabled public registration explicitly instead of pretending signup succeeded', async () => {
+  it('redirects legacy registration to NOVAX login and explains administrator-managed access', async () => {
     const harness = await RouterTestingHarness.create();
     await harness.navigateByUrl('/auth/register');
     http
@@ -49,13 +49,12 @@ describe('Application routes and page contracts', () => {
       });
     harness.detectChanges();
     expect(harness.routeNativeElement?.textContent).toContain(
-      'registro público aún no está habilitado',
+      'solicita una cuenta al administrador de NOVAX',
     );
     expect(
-      harness.routeNativeElement?.querySelector<HTMLButtonElement>(
-        'button[type="submit"]',
-      )?.disabled,
-    ).toBeTrue();
+      harness.routeNativeElement?.querySelector('[autocomplete="organization"]'),
+    ).toBeNull();
+    expect(TestBed.inject(Router).url).toBe('/auth/login');
   });
   it('keeps invalid login visible and sends the exact backend contract', async () => {
     const harness = await RouterTestingHarness.create();
@@ -71,13 +70,11 @@ describe('Application routes and page contracts', () => {
       input.value = value;
       input.dispatchEvent(new Event('input'));
     };
-    fill('[autocomplete="organization"]', 'qa-test');
     fill('[autocomplete="username"]', 'qa-user');
     fill('[autocomplete="current-password"]', 'test-only-password');
     form.dispatchEvent(new Event('submit'));
     const request = http.expectOne('/v1/api/auth/web/login');
     expect(request.request.body).toEqual({
-      tenant_slug: 'qa-test',
       identifier: 'qa-user',
       password: 'test-only-password',
     });
@@ -91,6 +88,25 @@ describe('Application routes and page contracts', () => {
       'Credenciales inválidas',
     );
     expect(TestBed.inject(Router).url).toBe('/auth/login');
+  });
+  it('recovers access using only the email, with no organization selector', async () => {
+    const harness = await RouterTestingHarness.create('/auth/forgot-password');
+    http.expectOne('/v1/api/auth/capabilities').flush({
+      data: { registration_enabled: false, password_recovery_enabled: true },
+    });
+    harness.detectChanges();
+    const root = harness.routeNativeElement!;
+    expect(root.querySelector('[autocomplete="organization"]')).toBeNull();
+    const input = root.querySelector<HTMLInputElement>('[autocomplete="email"]')!;
+    input.value = 'person@example.test';
+    input.dispatchEvent(new Event('input'));
+    root.querySelector('form')!.dispatchEvent(new Event('submit'));
+    const request = http.expectOne('/v1/api/auth/forgot-password');
+    expect(request.request.body).toEqual({ email: 'person@example.test' });
+    request.flush({ data: { message: 'Solicitud recibida.' } });
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    expect(root.textContent).toContain('Solicitud recibida.');
   });
   it('protects advanced routes even when a non-owner types the URL directly', async () => {
     TestBed.inject(AuthState).identity.set({ ...testIdentity, roles: [] });

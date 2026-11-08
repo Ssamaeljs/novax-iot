@@ -66,7 +66,8 @@ import { IconComponent, IconName } from './icon.component';
       }
       button {
         padding: 0.5rem;
-        min-width: 36px;
+        min-width: 44px;
+        min-height: 44px;
       }
     }
   `,

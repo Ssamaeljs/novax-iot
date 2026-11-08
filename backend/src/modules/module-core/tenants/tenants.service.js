@@ -15,7 +15,7 @@ const timezoneRule = {
 
 module.exports = new AutoCrudService({
   model: Tenant,
-  writableFields: ["name", "slug", "timezone", "metadata", "is_active"],
+  writableFields: ["name", "timezone", "metadata"],
   filterableFields: ["is_active", "slug"],
   searchableFields: ["name", "slug"],
   sortableFields: ["name", "slug", "created_at"],
@@ -37,10 +37,8 @@ module.exports = new AutoCrudService({
     },
     update: {
       name: { type: "string", minLength: 2, maxLength: 120 },
-      slug: { type: "string", lowercase: true, format: "slug", maxLength: 80 },
       timezone: timezoneRule,
       metadata: { type: "object" },
-      is_active: { type: "boolean" },
     },
   },
 });

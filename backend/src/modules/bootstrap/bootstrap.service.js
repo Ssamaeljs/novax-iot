@@ -12,10 +12,11 @@ const DynamicValidator = require("../../helpers/autoCrud/DynamicValidator");
 const AppError = require("../../utils/handleError/AppError");
 const { generateApiToken, safeEqual } = require("../../utils/security/apiToken");
 const { recordAudit } = require("../module-audit/auditLogs/auditWriter");
+const { organizationScope } = require("../../config/organization");
 
 const schema = {
-  tenant_name: { required: true, type: "string", minLength: 2, maxLength: 120 },
-  tenant_slug: { required: true, type: "string", lowercase: true, format: "slug", maxLength: 80 },
+  tenant_name: { type: "string", minLength: 2, maxLength: 120 },
+  tenant_slug: { type: "string", lowercase: true, format: "slug", maxLength: 80 },
   timezone: { type: "string", maxLength: 64 },
   first_name: { required: true, type: "string", minLength: 2, maxLength: 120 },
   last_name: { required: true, type: "string", minLength: 1, maxLength: 120 },
@@ -44,20 +45,27 @@ class BootstrapService {
     }
 
     const payload = await new DynamicValidator().validate(schema, input);
+    const scope = organizationScope();
+    const slug = process.env.NOVAX_TENANT_SLUG?.trim() || "novax-iot";
+    if (payload.tenant_slug !== undefined && payload.tenant_slug !== slug) {
+      throw new AppError("El bootstrap solo puede inicializar NOVAX", 422, "INVALID_ORGANIZATION");
+    }
     const generated = generateApiToken();
 
     return sequelize.transaction(async (transaction) => {
       await sequelize.query("SELECT pg_advisory_xact_lock(672903145)", { transaction });
       const existingTokens = await ApiToken.count({ transaction });
-      if (existingTokens > 0) {
+      const existingTenants = await Tenant.count({ transaction });
+      if (existingTokens > 0 || existingTenants > 0) {
         throw new AppError("El bootstrap ya fue ejecutado", 409, "BOOTSTRAP_ALREADY_COMPLETED");
       }
 
       const tenant = await Tenant.create(
         {
-          name: payload.tenant_name,
-          slug: payload.tenant_slug,
-          timezone: payload.timezone || "UTC",
+          ...(scope.external_id ? { external_id: scope.external_id } : {}),
+          name: payload.tenant_name || "NOVAX",
+          slug,
+          timezone: payload.timezone || "America/Guayaquil",
         },
         { transaction },
       );
@@ -66,7 +74,6 @@ class BootstrapService {
           tenant_id: tenant.id,
           first_name: payload.first_name,
           last_name: payload.last_name,
-          id_card: payload.id_card,
           id_card: payload.id_card,
           is_active: true,
         },

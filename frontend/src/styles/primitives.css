@@ -554,4 +554,57 @@ dialog::backdrop {
   .section-title {
     flex-wrap: wrap;
   }
+  .section-title > div { min-width: 0; }
+  .section-title h1, .section-title h2 { overflow-wrap: anywhere; }
+  .section-title > .button { width: 100%; }
+  .button, summary { min-height: 44px; }
+  .button--icon { min-width: 44px; }
+  .card-body { overflow-wrap: anywhere; }
+  .field input, .field select, .field textarea { font-size: 16px; min-height: 44px; }
+  .dialog-content { padding: 1rem; }
+  .dialog-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    background: var(--bg-elevated);
+    padding: .75rem 1rem;
+  }
+  .dialog-actions .button { flex: 1; }
+  .pagination { width: 100%; }
+  .pagination .button { flex: 1; }
+  .dropdown-panel { max-width: calc(100vw - 2rem); }
+  .operational-table, .operational-table tbody { display: block; }
+  .operational-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .operational-table tbody tr {
+    display: grid;
+    margin: .75rem;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+  }
+  .operational-table td {
+    display: grid;
+    grid-template-columns: minmax(85px, 32%) minmax(0, 1fr);
+    gap: .65rem;
+    padding: .7rem;
+    min-width: 0;
+    max-width: none;
+    overflow-wrap: anywhere;
+  }
+  .operational-table td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .operational-table td[data-label='Acciones'] { grid-template-columns: 1fr; }
+  .operational-table td > * { min-width: 0; }
+  .operational-table td .badge { justify-self: start; white-space: normal; }
 }

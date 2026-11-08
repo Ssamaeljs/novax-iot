@@ -3,12 +3,13 @@ import {
   Component,
   DestroyRef,
   ElementRef,
+  HostListener,
   inject,
   OnInit,
   signal,
   viewChild,
 } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import {
   FormControl,
   FormGroup,
@@ -17,6 +18,10 @@ import {
   Validators,
 } from '@angular/forms';
 import { JsonPipe } from '@angular/common';
+import { DOCUMENT } from '@angular/common';
+import { FormFocusDirective } from '../../shared/ui/form-focus.directive';
+import { fieldError } from '../../shared/ui/field-error';
+import { enumLabel } from '../../shared/ui/enum-label';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { firstValueFrom, Subscription } from 'rxjs';
 import { ApiService, Entity, errorMessage } from '../../core/api/api.service';
@@ -28,7 +33,7 @@ import {
   resources,
 } from './resource-definitions';
 @Component({
-  imports: [FormsModule, ReactiveFormsModule, JsonPipe, IconComponent],
+  imports: [FormsModule, ReactiveFormsModule, JsonPipe, IconComponent, RouterLink, FormFocusDirective],
   templateUrl: './resource.page.html',
   styleUrl: './resource.page.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -38,6 +43,12 @@ export class ResourcePage implements OnInit {
   readonly state = inject(AuthState);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly document = inject(DOCUMENT);
+  readonly fieldError = fieldError;
+  readonly enumLabel = enumLabel;
+  private assignmentDirty = false;
+  readonly itemNames: Record<string, string> = { projects: 'proyecto', devices: 'dispositivo', sensors: 'sensor', users: 'usuario', accounts: 'cuenta', roles: 'rol', 'api-tokens': 'token de API' };
+  itemName() { return this.itemNames[this.key] || 'registro'; }
   private readonly dialog = viewChild<ElementRef<HTMLDialogElement>>('editor');
   private request?: Subscription;
   private generation = 0;
@@ -61,6 +72,7 @@ export class ResourcePage implements OnInit {
     'PASSWORD_RESET',
     'PASSWORD_CHANGE',
     'BOOTSTRAP',
+    'INGEST',
   ];
   page = 1;
   readonly rows = signal<Entity[]>([]);
@@ -94,7 +106,7 @@ export class ResourcePage implements OnInit {
         this.auditOutcome = '';
         this.page = 1;
         this.notice.set('');
-        this.close();
+        this.close(true);
         this.load();
       });
   }
@@ -136,6 +148,11 @@ export class ResourcePage implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (result) => {
+          if (!result.data.length && this.page > 1 && result.pagination.total_pages < this.page) {
+            this.page = Math.max(1, result.pagination.total_pages);
+            this.load();
+            return;
+          }
           this.rows.set(result.data);
           this.total.set(result.pagination.total);
           this.pages.set(result.pagination.total_pages);
@@ -149,6 +166,10 @@ export class ResourcePage implements OnInit {
         },
       });
   }
+  clearFilters() { this.search = ''; this.auditAction = ''; this.auditOutcome = ''; this.load(true); }
+  hasFilters() { return !!(this.search.trim() || this.auditAction || this.auditOutcome); }
+  invalidFields() { return this.fields.filter((field) => this.form.controls[field.key]?.touched && this.form.controls[field.key].invalid); }
+  focusField(key: string) { this.dialog()?.nativeElement.querySelector<HTMLElement>(`#resource-${key}`)?.focus(); }
   value(row: Entity, key: string): any {
     return key.split('.').reduce((value, part) => value?.[part], row as any);
   }
@@ -156,6 +177,7 @@ export class ResourcePage implements OnInit {
     const value = this.value(row, key);
     if (value === null || value === undefined || value === '') return '—';
     if (typeof value === 'boolean') return value ? 'Sí' : 'No';
+    if (['status', 'data_type', 'quality', 'outcome', 'action'].includes(key)) return enumLabel(String(value));
     if (Array.isArray(value))
       return (
         value.map((item) => item.name || item.key || item).join(', ') ||
@@ -170,17 +192,27 @@ export class ResourcePage implements OnInit {
   label(row: Entity) {
     return (
       row['name'] ||
+      row['title'] ||
       [row['first_name'], row['last_name']].filter(Boolean).join(' ') ||
       row['username'] ||
       row['key'] ||
       row.external_id
     );
   }
-  close() {
+  hasUnsavedChanges() { return (['create', 'edit'].includes(this.mode()) && this.form.dirty) || (this.mode() === 'assign' && this.assignmentDirty); }
+  canLeave() {
+    // Expired sessions and explicit logout must never be trapped by an editor guard.
+    if (!this.state.identity()) return true;
+    return !this.saving() && (!this.hasUnsavedChanges() || !!this.document.defaultView?.confirm('Hay cambios sin guardar. ¿Quieres descartarlos?'));
+  }
+  @HostListener('window:beforeunload', ['$event']) beforeUnload(event: BeforeUnloadEvent) { if (this.hasUnsavedChanges() || this.saving()) event.preventDefault(); }
+  close(force = false) {
+    if (!force && !this.canLeave()) return;
     this.generation++;
     this.dialog()?.nativeElement.close();
     this.secret.set('');
     this.form.reset();
+    this.assignmentDirty = false;
   }
   async open(
     mode: 'create' | 'edit' | 'delete' | 'detail' | 'assign',
@@ -194,11 +226,12 @@ export class ResourcePage implements OnInit {
     this.choices.set({});
     this.assignment.set([]);
     this.preparing.set(false);
+    this.assignmentDirty = false;
     this.fields = this.definition.fields.filter(
       (field) =>
         !(mode === 'edit' && field.createOnly) &&
         !(mode === 'create' && field.editOnly),
-    );
+    ).map((field) => field.key === 'protocol' && mode === 'edit' && row?.['protocol'] && !field.options?.includes(row['protocol']) ? { ...field, options: [...(field.options || []), row['protocol']] } : field);
     const controls: Record<string, FormControl<any>> = {};
     for (const field of this.fields) {
       controls[field.key] = new FormControl(
@@ -212,6 +245,7 @@ export class ResourcePage implements OnInit {
           ...(field.type === 'number' && field.min !== undefined
             ? [Validators.min(field.min)]
             : []),
+          ...(field.type === 'number' && field.max !== undefined ? [Validators.max(field.max)] : []),
           ...(field.max && field.type !== 'number'
             ? [Validators.maxLength(field.max)]
             : []),
@@ -250,6 +284,7 @@ export class ResourcePage implements OnInit {
     }
   }
   toggleScope(scope: string, checked: boolean) {
+    this.form.markAsDirty();
     const current = this.form.controls['scopes'].value as string[];
     this.form.controls['scopes'].setValue(
       checked
@@ -261,6 +296,7 @@ export class ResourcePage implements OnInit {
     return this.key === 'accounts' ? row.external_id : row['key'];
   }
   toggleAssignment(key: string, checked: boolean) {
+    this.assignmentDirty = true;
     this.selectedAssignments = checked
       ? [...this.selectedAssignments, key]
       : this.selectedAssignments.filter((value) => value !== key);
@@ -320,7 +356,7 @@ export class ResourcePage implements OnInit {
         this.secret.set(result.data['token']);
         this.mode.set('secret');
         this.form.reset();
-      } else this.close();
+      } else this.close(true);
       this.load();
     } catch (error) {
       if (generation === this.generation)

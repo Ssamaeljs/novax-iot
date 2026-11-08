@@ -9,7 +9,7 @@ El frontend anterior era un catálogo visual sin autenticación ni consumo de AP
 Implementado:
 
 - Landing, navbar/footer reutilizables; navegación de escritorio/móvil con RouterLink.
-- Login web, registro de organización, recuperación y restablecimiento por correo.
+- Login web exclusivo para NOVAX, recuperación y restablecimiento por correo. Las altas son administrativas.
 - Menú de usuario: Cuenta, Configuración y Opciones avanzadas para TENANT_OWNER.
 - Administración: usuarios, cuentas, roles, asignación de permisos, catálogo de permisos, tokens y auditoría.
 - Operación: CRUD de dispositivos/sensores y registro manual de mediciones tipadas.
@@ -25,7 +25,12 @@ Implementado:
 
 `proxy.conf.json` dirige `/v1/api/**` al backend local en el puerto 5000. El frontend usa URLs relativas centralizadas en `core/api/api.service.ts`; no contiene credenciales ni direcciones de servidor repartidas por componentes. Si cambia el puerto backend, ajustar el proxy y reiniciar Angular.
 
-Registro y recuperación están implementados, pero se activan mediante configuración del backend. Consultar `../backend/docs/web-platform.md`. El registro público está cerrado por defecto. Sin SMTP, la interfaz explica que el envío de correos no está disponible.
+El login solicita usuario/correo y contraseña; la recuperación solo solicita correo. El backend
+resuelve NOVAX y rechaza credenciales de otras organizaciones. El registro de empresas está
+cerrado y `/auth/register` redirige a login; ya no se muestran formularios ni enlaces para crear
+organizaciones. La estructura de tenant y el rol `TENANT_OWNER` se conservan internamente.
+Consultar `../backend/docs/web-platform.md`. Sin SMTP, la interfaz explica que el envío de
+correos no está disponible.
 
 ## Organización Angular
 
@@ -41,7 +46,7 @@ src/app/
   layouts/        estructura pública y workspace privado
   features/
     landing/      entrada pública
-    auth/         login, registro, recuperación y reset
+    auth/         login NOVAX, recuperación y reset
     overview/     resumen real por permisos
     administration/ definiciones de recursos y CRUD declarativo
     operations/   ingreso de mediciones
@@ -135,11 +140,35 @@ Alternativa si el shim npm no funciona: `node node_modules/@angular/cli/bin/ng.j
 
 Pruebas Angular cubren tema, tablas, modales, validación, menú por rol, guards, sesión, rutas públicas/privadas, 404 y endpoints de catálogos. El contrato visual comprueba arranque temprano, persistencia, contraste de pares semánticos, paridad de tokens y ausencia de colores literales fuera de tokens/paleta. El backend dispone de pruebas de integración PostgreSQL con rollback, documentadas en su guía.
 
-## Límites explícitos
+## Proyectos y tableros
 
-- Los estados son los registrados en el backend, no una conexión de streaming en vivo. Registrar MQTT/ONVIF en el inventario no implementa un consumidor MQTT ni un reproductor RTSP.
+En **Proyectos** se crean agrupaciones visuales con código, título y descripción. **Abrir tablero** permite visualizar sensores; **Editar tablero** abre la biblioteca derecha con termómetro, gauge, línea temporal comparativa y HTML/CSS sin JavaScript. Posición, tamaño y bloqueo se guardan explícitamente. Los manejadores admiten puntero y teclado; las propiedades permiten edición alternativa en móvil.
+
+La página se carga de forma diferida desde `features/projects`; reutiliza autenticación, permisos, API, temas y administración existentes. Histórico: hasta 200 muestras por sensor de 1 h, 6 h, 24 h o 7 días, sin agregaciones; refresco cada 30 segundos. Consulte [contrato y seguridad](../backend/docs/project-boards.md) y [evidencia TFM](../backend/docs/increments/2026-10-18-project-boards.md).
+
+## Usabilidad y evaluación SUS
+
+La **Guía de uso** está disponible dentro de la plataforma en `/app/help`, con enlaces según permisos. Los formularios reactivos comparten foco al primer campo inválido; los catálogos añaden errores concretos, recuperación de filtros y protección de cambios sin guardar. Se conservan temas, contratos y lógica de negocio.
+
+La [auditoría](docs/usability-audit.md) distingue correcciones y aspectos pendientes. El [protocolo de evaluación](docs/usability-study.md) prepara tareas y el instrumento SUS español validado, sin atribuir una puntuación no medida. El registro de tareas está en `docs/usability-task-record.csv`.
+
+Pruebas del calculador: `node --test test/sus-score.test.cjs`. Con respuestas reales anonimizadas: `node tools/sus-score.cjs ruta-a-respuestas.json`. El calculador no forma parte del frontend publicado ni envía información a la API.
+
+## Alcance funcional actual
+
+Los breadcrumbs del espacio autenticado se definen en `data.breadcrumb` de las rutas y se presentan desde un componente compartido en el layout. Permiten volver a listados y al dispositivo de origen desde reportes/medición manual, mediante RouterLink y respetando permisos/guardas. Véase [navegación breadcrumb](docs/breadcrumb-navigation.md).
+
+**Detalle operativo del dispositivo** (`/app/device/:deviceId`, UUID público) se abre desde Dispositivos → Abrir. Incluye breadcrumb, ficha lateral, sensores paginados en tarjetas/tabla y última lectura por sensor. Permite crear, editar y activar/desactivar sensores según permisos; Reportes y Medición manual conservan el contexto del dispositivo/sensor. Sincronizar vuelve a consultar el servidor, no envía comandos al hardware. Véase [evidencia del incremento](../backend/docs/increments/2026-10-18-device-operational-detail.md).
+
+La gestión contextual utiliza `/iot/devices/:device_external_id/sensors`: el dispositivo se fija por la ruta y el servidor verifica la pertenencia de cada canal. Para un DHT11 conectado al ESP32, registra dos canales mediante las plantillas Temperatura y Humedad; sus claves deben coincidir con el perfil HTTPS/MQTT. El catálogo de sensores enlaza al dispositivo asociado. No hay autodescubrimiento de hardware ni una entidad separada de componente físico. Véase [vínculo dispositivo–sensor](../backend/docs/increments/2026-10-18-device-sensor-link.md).
+
+**Integraciones** (`/app/integrations`) permite a roles con `integrations.manage` publicar modelos de datos declarativos/versionados, probar normalización sin guardar telemetría y gestionar fuentes vinculadas a dispositivos. Las credenciales se muestran una vez y no se guardan en el navegador. El acceso de consulta usa `integrations.read`. Véase [guía HTTPS/MQTT](../backend/docs/integration-common-model.md).
+
+El criterio de interfaz es **móvil y operación primero**: acciones y datos de trabajo antes de ayuda/configuración secundaria. Véase [diseño responsive operativo](docs/mobile-operational-design.md) para comportamiento, tamaños probados y aceptación pendiente en dispositivos físicos. Los listados usan fichas etiquetadas en móvil sin eliminar columnas ni acciones; los widgets conservan su geometría guardada al apilarse.
+
+- La ingesta HTTPS/MQTT se configura mediante fuentes y modelos versionados en Integraciones. Registrar un dispositivo por sí solo no establece comunicación. El broker MQTT debe habilitarse en servidor; la interfaz no constituye streaming en vivo.
 - Las gráficas muestran las muestras de la página consultada, respetan tiempo y unidades y no mezclan sensores. No son agregaciones diarias/mensuales ni resúmenes de todo el histórico.
-- Las cámaras se administran como equipos ONVIF. Video, alertas automáticas, planos y comandos remotos necesitan endpoints y servicios adicionales.
+- El alcance de nuevas integraciones es HTTPS y MQTT. Los registros HTTP/ONVIF anteriores se conservan como legado; no se implementa vídeo ni una integración ONVIF.
 - Los selectores de relaciones recorren la paginación hasta 5.000 registros y muestran error si se supera ese límite; para catálogos mayores corresponde un buscador remoto.
-- No hay invitaciones ni verificación de correo. El registro crea una nueva organización, nunca acceso automático a una existente.
+- No hay invitaciones ni verificación de correo. Los usuarios se incorporan a NOVAX desde administración mediante usuario, cuenta y roles.
 - Las pruebas de contraste no sustituyen una auditoría integral de accesibilidad ni pruebas en dispositivos físicos.

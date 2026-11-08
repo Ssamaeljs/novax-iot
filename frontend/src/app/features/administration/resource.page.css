@@ -86,6 +86,12 @@ dialog {
   width: min(660px, calc(100% - 2rem));
 }
 @media (max-width: 600px) {
+  .table-scroll { max-height: none; }
+  .row-actions { flex-wrap: wrap; white-space: normal; gap: .5rem; }
+  .row-actions .button { flex: 1 1 auto; }
+  .cell-value { max-width: 100%; }
+  .audit-filters { width: 100%; }
+  .audit-filters .field { flex: 1 1 120px; }
   .editor-fields {
     grid-template-columns: 1fr;
   }

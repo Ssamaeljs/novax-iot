@@ -4,6 +4,7 @@
   "main": "index.js",
   "scripts": {
     "test": "node --test",
+    "test:integration": "node scripts/run-integration-isolated.js",
     "db:prepare": "node scripts/prepare-db.js",
     "db:migrate": "node scripts/migrate.js up",
     "db:undo": "node scripts/migrate.js down",
@@ -34,6 +35,7 @@
     "express-rate-limit": "^8.7.0",
     "glob": "^10.4.5",
     "jsonwebtoken": "^9.0.3",
+    "mqtt": "^5.16.1",
     "nodemailer": "^10.0.10",
     "pg": "^8.18.0",
     "pg-hstore": "^2.3.4",

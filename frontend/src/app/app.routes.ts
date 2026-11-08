@@ -4,6 +4,7 @@ const resourcePage = () =>
   import('./features/administration/resource.page').then(
     (module) => module.ResourcePage,
   );
+const confirmResourceChanges = (component: { canLeave(): boolean }) => component.canLeave();
 export const routes: Routes = [
   {
     path: 'app',
@@ -16,7 +17,18 @@ export const routes: Routes = [
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'overview' },
       {
+        path: 'projects', title: 'Proyectos · Novax IoT',
+        data: { resource: 'projects', permission: 'projects.read', breadcrumb: { label: 'Proyectos' } }, loadComponent: resourcePage, canDeactivate: [confirmResourceChanges],
+      },
+      {
+        path: 'projects/:external_id', title: 'Tablero · Novax IoT',
+        data: { permission: 'projects.read', breadcrumb: { label: 'Tablero', parents: [{ label: 'Proyectos', commands: ['/app/projects'], permission: 'projects.read' }] } },
+        canDeactivate: [(component: { canLeave(): boolean }) => component.canLeave()],
+        loadComponent: () => import('./features/projects/project-board.page').then((module) => module.ProjectBoardPage),
+      },
+      {
         path: 'overview',
+        data: { breadcrumb: { label: 'Inicio' } },
         title: 'Vista general · Novax IoT',
         loadComponent: () =>
           import('./features/overview/overview.page').then(
@@ -26,7 +38,7 @@ export const routes: Routes = [
       {
         path: 'monitoring',
         title: 'Monitorización · Novax IoT',
-        data: { permission: 'measurements.read' },
+        data: { permission: 'measurements.read', breadcrumb: { label: 'Reportes de mediciones', deviceContext: true } },
         loadComponent: () =>
           import('./features/monitoring/monitoring.page').then(
             (module) => module.MonitoringPage,
@@ -35,19 +47,26 @@ export const routes: Routes = [
       {
         path: 'operations/devices',
         title: 'Dispositivos · Novax IoT',
-        data: { resource: 'devices', permission: 'devices.read' },
+        data: { resource: 'devices', permission: 'devices.read', breadcrumb: { label: 'Dispositivos' } },
+        canDeactivate: [confirmResourceChanges],
         loadComponent: resourcePage,
+      },
+      {
+        path: 'device/:deviceId', title: 'Dispositivo · Novax IoT',
+        data: { permission: 'devices.read', breadcrumb: { label: 'Dispositivo', parents: [{ label: 'Dispositivos', commands: ['/app/operations/devices'], permission: 'devices.read' }] } }, canDeactivate: [confirmResourceChanges],
+        loadComponent: () => import('./features/devices/device-detail.page').then((module) => module.DeviceDetailPage),
       },
       {
         path: 'operations/sensors',
         title: 'Sensores · Novax IoT',
-        data: { resource: 'sensors', permission: 'sensors.read' },
+        data: { resource: 'sensors', permission: 'sensors.read', breadcrumb: { label: 'Sensores' } },
+        canDeactivate: [confirmResourceChanges],
         loadComponent: resourcePage,
       },
       {
         path: 'operations/measurements',
         title: 'Registrar medición · Novax IoT',
-        data: { permission: 'measurements.write' },
+        data: { permission: 'measurements.write', breadcrumb: { label: 'Medición manual', deviceContext: true } },
         loadComponent: () =>
           import('./features/operations/measurement-entry.page').then(
             (module) => module.MeasurementEntryPage,
@@ -65,12 +84,17 @@ export const routes: Routes = [
         title: 'Administración · Novax IoT',
         data: {
           resource,
+          breadcrumb: { label: ({ users: 'Usuarios', accounts: 'Cuentas', roles: 'Roles', permissions: 'Permisos', 'api-tokens': 'Tokens de API', audit: 'Auditoría' } as Record<string, string>)[resource] },
           permission: `${resource === 'audit' ? 'audit_logs' : resource.replace('-', '_')}.read`,
         },
         loadComponent: resourcePage,
+        canDeactivate: [confirmResourceChanges],
       })),
+      { path: 'help', title: 'Guía de uso · Novax IoT', data: { breadcrumb: { label: 'Guía de uso' } }, loadComponent: () => import('./features/help/help.page').then((module) => module.HelpPage) },
+      { path: 'integrations', title: 'Integraciones · Novax IoT', data: { permission: 'integrations.read', breadcrumb: { label: 'Integraciones' } }, canDeactivate: [(component: { canLeave(): boolean }) => component.canLeave()], loadComponent: () => import('./features/integrations/integrations.page').then((module) => module.IntegrationsPage) },
       {
         path: 'account',
+        data: { breadcrumb: { label: 'Mi cuenta' } },
         title: 'Mi cuenta · Novax IoT',
         loadComponent: () =>
           import('./features/account/account.page').then(
@@ -79,6 +103,7 @@ export const routes: Routes = [
       },
       {
         path: 'settings',
+        data: { breadcrumb: { label: 'Configuración' } },
         title: 'Configuración · Novax IoT',
         loadComponent: () =>
           import('./features/settings/settings.page').then(
@@ -88,7 +113,7 @@ export const routes: Routes = [
       {
         path: 'advanced',
         title: 'Opciones avanzadas · Novax IoT',
-        data: { owner: true, permission: 'tenants.manage' },
+        data: { owner: true, permission: 'tenants.manage', breadcrumb: { label: 'Opciones avanzadas', parents: [{ label: 'Configuración', commands: ['/app/settings'] }] } },
         loadComponent: () =>
           import('./features/settings/advanced.page').then(
             (module) => module.AdvancedPage,
@@ -97,7 +122,7 @@ export const routes: Routes = [
       {
         path: 'forbidden',
         title: 'Acceso restringido · Novax IoT',
-        data: { forbidden: true },
+        data: { forbidden: true, breadcrumb: { label: 'Acceso restringido' } },
         loadComponent: () =>
           import('./features/errors/error.page').then(
             (module) => module.ErrorPage,
@@ -129,7 +154,8 @@ export const routes: Routes = [
             (module) => module.LandingPage,
           ),
       },
-      ...['login', 'register', 'forgot-password', 'reset-password'].map(
+      { path: 'auth/register', pathMatch: 'full', redirectTo: '/auth/login' },
+      ...['login', 'forgot-password', 'reset-password'].map(
         (mode) => ({
           path: `auth/${mode}`,
           title: 'Acceso · Novax IoT',

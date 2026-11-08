@@ -20,6 +20,7 @@ class MeasurementService extends AutoCrudService {
         "quality",
         "sequence",
         "source_payload",
+        "integration_message_id", "metric_snapshot", "unit_snapshot",
       ],
       virtualFields: ["sensor_external_id", "value"],
       hiddenFields: ["tenant_id", "device_id", "sensor_id"],
@@ -46,6 +47,7 @@ class MeasurementService extends AutoCrudService {
           const sensor = await Sensor.findOne({
             where: { external_id: input.sensor_external_id, tenant_id: context.auth.tenantId, is_active: true },
             transaction,
+            lock: transaction.LOCK.SHARE,
           });
           if (!sensor) throw new AppError("Sensor no encontrado", 404, "SENSOR_NOT_FOUND");
 
@@ -53,7 +55,10 @@ class MeasurementService extends AutoCrudService {
             sensor_id: sensor.id,
             device_id: sensor.device_id,
             observed_at: new Date(input.observed_at),
-            received_at: new Date(),
+            received_at: context.receivedAt || new Date(),
+            integration_message_id: context.ingestionMessageId || null,
+            metric_snapshot: sensor.metric,
+            unit_snapshot: sensor.unit,
             quality: input.quality || "GOOD",
             sequence: input.sequence,
             source_payload: input.source_payload,
@@ -79,6 +84,7 @@ class MeasurementService extends AutoCrudService {
 
   serialize(record) {
     const value = super.serialize(record);
+    if (value.sensor && value.metric_snapshot) value.sensor = { ...value.sensor, metric: value.metric_snapshot, unit: value.unit_snapshot };
     if (value.value_number !== null && value.value_number !== undefined) value.value = value.value_number;
     else if (value.value_text !== null && value.value_text !== undefined) value.value = value.value_text;
     else if (value.value_boolean !== null && value.value_boolean !== undefined) value.value = value.value_boolean;

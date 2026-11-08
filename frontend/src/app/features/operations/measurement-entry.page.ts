@@ -11,12 +11,13 @@ import {
   ReactiveFormsModule,
   Validators,
 } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { ApiService, Entity, errorMessage } from '../../core/api/api.service';
 import { AuthState } from '../../core/auth/auth-state.service';
+import { FormFocusDirective } from '../../shared/ui/form-focus.directive';
 @Component({
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule, RouterLink, FormFocusDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `<header class="section-title">
       <div>
@@ -31,7 +32,7 @@ import { AuthState } from '../../core/auth/auth-state.service';
     <section class="card card-body entry">
       <p class="alert">
         Útil para pruebas y carga manual. La ingestión automatizada utiliza la
-        API de mediciones con un token de permisos limitados.
+        capa de integración HTTPS o MQTT con credenciales del dispositivo.
       </p>
       @if (error()) {
         <p class="alert" data-status="CRITICAL" role="alert">{{ error() }}</p>
@@ -39,7 +40,7 @@ import { AuthState } from '../../core/auth/auth-state.service';
       @if (message()) {
         <p class="alert" data-status="SUCCESS" role="status">{{ message() }}</p>
       }
-      <form [formGroup]="form" class="stack" (ngSubmit)="submit()">
+      <form appFormFocus [formGroup]="form" class="stack" (ngSubmit)="submit()" [attr.aria-busy]="busy()">
         <label class="field"
           >Sensor<select
             formControlName="sensor_external_id"
@@ -82,9 +83,9 @@ import { AuthState } from '../../core/auth/auth-state.service';
           }</label
         ><label class="field"
           >Calidad<select formControlName="quality">
-            <option>GOOD</option>
-            <option>UNCERTAIN</option>
-            <option>BAD</option>
+            <option value="GOOD">Buena</option>
+            <option value="UNCERTAIN">Incierta</option>
+            <option value="BAD">Mala</option>
           </select></label
         >
         @if (form.touched && form.invalid) {
@@ -99,7 +100,7 @@ import { AuthState } from '../../core/auth/auth-state.service';
             {{ busy() ? 'Registrando…' : 'Registrar lectura' }}
           </button>
           @if (state.has('measurements.read')) {
-            <a class="button" routerLink="/app/monitoring"
+            <a class="button" routerLink="/app/monitoring" [queryParams]="{device: deviceId || null, sensor: form.controls.sensor_external_id.value || null}"
               >Consultar historial</a
             >
           }
@@ -122,6 +123,8 @@ import { AuthState } from '../../core/auth/auth-state.service';
 })
 export class MeasurementEntryPage implements OnInit {
   private readonly api = inject(ApiService);
+  private readonly route = inject(ActivatedRoute);
+  readonly deviceId = this.route.snapshot?.queryParamMap?.get('device') || '';
   readonly state = inject(AuthState);
   readonly sensors = signal<Entity[]>([]);
   readonly busy = signal(false);
@@ -150,8 +153,12 @@ export class MeasurementEntryPage implements OnInit {
       return;
     }
     void this.api
-      .options('iot/sensors', { is_active: true })
-      .then((rows) => this.sensors.set(rows))
+      .options('iot/sensors', { is_active: true, ...(this.deviceId ? { device_external_id: this.deviceId } : {}) })
+      .then((rows) => {
+        this.sensors.set(rows);
+        const sensor = this.route.snapshot?.queryParamMap?.get('sensor');
+        if (rows.some((row) => row.external_id === sensor)) this.form.controls.sensor_external_id.setValue(sensor!);
+      })
       .catch((error) => this.error.set(errorMessage(error)));
   }
   selected() {

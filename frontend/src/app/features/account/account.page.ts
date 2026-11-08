@@ -14,8 +14,9 @@ import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { ApiService, errorMessage } from '../../core/api/api.service';
 import { AuthState, Identity } from '../../core/auth/auth-state.service';
+import { FormFocusDirective } from '../../shared/ui/form-focus.directive';
 @Component({
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, FormFocusDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `<header class="section-title">
       <div>
@@ -37,7 +38,7 @@ import { AuthState, Identity } from '../../core/auth/auth-state.service';
             state.identity()?.account?.username
           }}
         </p>
-        <form [formGroup]="profile" class="stack" (ngSubmit)="saveProfile()">
+        <form appFormFocus [formGroup]="profile" class="stack" (ngSubmit)="saveProfile()" [attr.aria-busy]="busy()">
           <label class="field"
             >Nombres<input
               formControlName="first_name"
@@ -70,7 +71,7 @@ import { AuthState, Identity } from '../../core/auth/auth-state.service';
         <p class="muted">
           Esta acción cerrará todas tus sesiones. Deberás volver a ingresar.
         </p>
-        <form
+        <form appFormFocus
           [formGroup]="password"
           class="stack"
           (ngSubmit)="changePassword()"

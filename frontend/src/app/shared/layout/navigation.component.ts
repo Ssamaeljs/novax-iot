@@ -25,9 +25,11 @@ export class NavigationComponent {
   readonly state = inject(AuthState);
   readonly groups: { label: string; items: NavItem[] }[] = [
     {
-      label: 'Workspace',
+      label: 'Espacio de trabajo',
       items: [
         { path: 'overview', label: 'Vista general', icon: 'grid' },
+        { path: 'help', label: 'Guía de uso', icon: 'layers' },
+        { path: 'projects', label: 'Proyectos', icon: 'layers', permission: 'projects.read' },
         {
           path: 'monitoring',
           label: 'Monitorización',
@@ -39,6 +41,7 @@ export class NavigationComponent {
     {
       label: 'Operación',
       items: [
+        { path: 'integrations', label: 'Integraciones', icon: 'layers', permission: 'integrations.read' },
         {
           path: 'operations/devices',
           label: 'Dispositivos',

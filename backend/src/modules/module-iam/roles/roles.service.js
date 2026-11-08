@@ -7,6 +7,7 @@ class RoleService extends AutoCrudService {
   constructor() {
     super({
       model: Role,
+      automaticCodePrefix: "ROL",
       writableFields: ["code", "name", "description", "is_active"],
       hiddenFields: ["id", "tenant_id"],
       filterableFields: ["is_active", "is_system"],
@@ -22,13 +23,11 @@ class RoleService extends AutoCrudService {
       ],
       schemas: {
         create: {
-          code: { required: true, type: "string", uppercase: true, minLength: 2, maxLength: 60 },
           name: { required: true, type: "string", minLength: 2, maxLength: 120 },
           description: { type: "string", maxLength: 255, allowNull: true },
           is_active: { type: "boolean" },
         },
         update: {
-          code: { type: "string", uppercase: true, minLength: 2, maxLength: 60 },
           name: { type: "string", minLength: 2, maxLength: 120 },
           description: { type: "string", maxLength: 255, allowNull: true },
           is_active: { type: "boolean" },

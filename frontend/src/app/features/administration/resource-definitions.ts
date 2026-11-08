@@ -3,6 +3,7 @@ export interface ResourceField {
   label: string;
   type?:
     | 'text'
+    | 'textarea'
     | 'email'
     | 'password'
     | 'number'
@@ -44,8 +45,13 @@ const name = field('name', 'Nombre', {
   minLength: 2,
   max: 120,
 });
-const code = field('code', 'Código', { required: true, minLength: 2, max: 80 });
 export const resources: Record<string, ResourceDefinition> = {
+  projects: {
+    title: 'Proyectos', description: 'Organiza sensores en tableros con indicadores, históricos y widgets personalizados.',
+    endpoint: 'projects', permission: 'projects',
+    columns: [{ key: 'title', label: 'Proyecto' }, { key: 'code', label: 'Código' }, { key: 'description', label: 'Descripción' }, { key: 'is_active', label: 'Activo' }],
+    fields: [field('title', 'Título', { required: true, minLength: 2, max: 120 }), field('description', 'Descripción', { type: 'textarea', max: 4000, nullable: true }), active],
+  },
   devices: {
     title: 'Dispositivos',
     description:
@@ -61,7 +67,6 @@ export const resources: Record<string, ResourceDefinition> = {
       { key: 'is_active', label: 'Activo' },
     ],
     fields: [
-      code,
       name,
       field('device_type', 'Tipo de equipo', {
         required: true,
@@ -71,7 +76,7 @@ export const resources: Record<string, ResourceDefinition> = {
       }),
       field('protocol', 'Protocolo', {
         type: 'select',
-        options: ['MQTT', 'HTTP', 'HTTPS', 'ONVIF'],
+        options: ['MQTT', 'HTTPS'],
         default: 'MQTT',
         required: true,
       }),
@@ -94,7 +99,7 @@ export const resources: Record<string, ResourceDefinition> = {
   sensors: {
     title: 'Sensores',
     description:
-      'Cada sensor pertenece a un dispositivo y define una métrica, un tipo de dato y una unidad.',
+        'Canales de medición asociados a un dispositivo. Un DHT11 aporta dos canales: temperatura y humedad. Abre el dispositivo para gestionarlos en contexto.',
     endpoint: 'iot/sensors',
     permission: 'sensors',
     columns: [
@@ -227,7 +232,6 @@ export const resources: Record<string, ResourceDefinition> = {
       { key: 'is_active', label: 'Activo' },
     ],
     fields: [
-      { ...code, max: 60 },
       name,
       field('description', 'Descripción', { max: 255, nullable: true }),
       active,

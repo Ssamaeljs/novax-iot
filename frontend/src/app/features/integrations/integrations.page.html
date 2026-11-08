@@ -1,0 +1,165 @@
+<header class="section-title">
+<div>
+<p>INTEGRACIÓN Y MODELO COMÚN</p>
+<h1>Integraciones</h1>
+<p>Recibe datos por HTTPS y MQTT y conviértelos en mediciones comunes de NOVAX.</p>
+</div>
+<button class="button" [disabled]="loading() || busy()" (click)="load()">Actualizar</button>
+</header>
+@if (error()) { <p class="alert" data-status="CRITICAL" role="alert">{{ error() }}</p> }
+@if (notice()) { <p class="alert" data-status="SUCCESS" role="status">{{ notice() }}</p> }
+<div class="panel card-body cluster">
+<strong>Receptor MQTT:</strong>
+<span class="badge" [attr.data-status]="mqtt()?.['subscription_ready'] ? 'SUCCESS' : 'WARNING'">{{ mqtt()?.['subscription_ready'] ? 'Suscrito al broker' : mqtt()?.['enabled'] ? 'Sin suscripción activa' : 'Deshabilitado en servidor' }}</span>
+<small>Requiere broker configurado. HTTPS necesita terminación TLS en producción.</small>
+</div>
+@if (secret()) {
+  <section class="panel card-body stack" aria-label="Credencial de la fuente">
+<h2>Guarda la credencial de {{ secretSource() }}</h2>
+<p class="alert" data-status="WARNING">Se muestra una sola vez. No se guarda en el navegador; el servidor conserva solo su hash. No la incluyas en capturas ni registros.</p>
+<label class="field">Credencial<textarea readonly spellcheck="false" [value]="secret()">
+</textarea>
+</label>
+<button class="button" (click)="secret.set('')">Ya la guardé; ocultar</button>
+</section>
+}
+<nav class="tabs" aria-label="Secciones de integración">
+  @for (item of [{key:'sources',label:'Fuentes'}, {key:'profiles',label:'Modelos de datos'}, {key:'messages',label:'Mensajes recibidos'}]; track item.key) { <button type="button" [attr.aria-current]="tab === item.key ? 'page' : null" [disabled]="busy()" (click)="switchTab(item.key)">{{ item.label }}</button> }
+</nav>
+@if (loading()) { <p class="empty-state" role="status">Cargando integraciones…</p> }
+@if (tab === 'sources') {
+  <header class="section-title">
+<div>
+<h2>Fuentes de dispositivos</h2>
+<p>Una fuente vincula un dispositivo, un perfil publicado y una credencial propia.</p>
+</div>@if (canManage()) { <button class="button button--primary" [disabled]="busy()" (click)="startSource()">Nueva fuente</button> }</header>
+  @if (editingSource()) {
+    <form #sourceForm="ngForm" class="panel card-body stack" (ngSubmit)="saveSource()" [attr.aria-busy]="busy()">
+      <h2>{{ sourceToEdit() ? 'Editar fuente' : 'Crear fuente' }}</h2>
+      <label class="field">Nombre *<input name="name" [(ngModel)]="sourceName" required minlength="2" maxlength="120" />
+</label>
+      @if (!sourceToEdit()) {
+        <label class="field">Transporte<select name="transport" [(ngModel)]="transport" (ngModelChange)="deviceId = ''">
+<option>HTTPS</option>
+<option>MQTT</option>
+</select>
+</label>
+        <label class="field">Dispositivo *<select name="device" [(ngModel)]="deviceId" required>
+<option value="">Seleccionar…</option>@for (device of compatibleDevices(); track device.external_id) { <option [value]="device.external_id">{{ device['name'] }}</option> }</select>
+</label>
+        <label class="field">Versión del modelo *<select name="profile" [(ngModel)]="profileId" required>
+<option value="">Seleccionar…</option>@for (profile of activeProfiles(); track profile.external_id) { <option [value]="profile.external_id">{{ profile.name }} · v{{ profile.version }}</option> }</select>
+</label>
+        @if (!devices().length || !activeProfiles().length) { <p class="alert" data-status="WARNING">Necesitas dispositivos activos compatibles, permiso de consulta y un perfil publicado antes de crear una fuente.</p> }
+      } @else { <p>Dispositivo, transporte y versión son inmutables. Crea otra fuente para cambiar su asociación.</p> }
+      <label class="field">Tiempo sin telemetría antes de marcar offline (segundos)<input type="number" name="timeout" [(ngModel)]="timeout" required min="30" max="86400" />
+</label>
+      <div class="cluster">
+<button class="button button--primary" type="submit" [disabled]="busy()">{{ busy() ? 'Guardando…' : 'Guardar fuente' }}</button>
+<button type="button" class="button" [disabled]="busy()" (click)="discardEditors()">Cancelar</button>
+</div>
+    </form>
+  }
+  @if (!loading() && !sources().length) { <p class="empty-state">No hay fuentes. Publica un modelo de datos, registra sus sensores y vincula un dispositivo.</p> }
+  @if (sources().length) {
+    <section class="panel table-scroll">
+<table class="operational-table" role="table">
+<thead role="rowgroup">
+<tr role="row">
+<th scope="col">Fuente</th>
+<th scope="col">Dispositivo / modelo</th>
+<th scope="col">Comunicación</th>
+<th scope="col">Acciones</th>
+</tr>
+</thead>
+<tbody role="rowgroup">
+      @for (source of sources(); track source.external_id) { <tr role="row">
+<td role="cell" data-label="Fuente">
+<div>
+<strong>{{ source['name'] }}</strong>
+<br />
+<span class="badge" [attr.data-status]="sourceReady(source) ? 'SUCCESS' : 'OFFLINE'">{{ sourceState(source) }}</span>
+</div>
+</td>
+<td role="cell" data-label="Dispositivo / modelo">
+<div>{{ source['device']?.name }}<br />{{ source['profile']?.name }} · v{{ source['profile']?.version }}</div>
+</td>
+<td role="cell" data-label="Comunicación">
+<div>
+<strong>{{ source['transport'] }}</strong>
+<br />{{ date(source['last_received_at']) }}<details>
+<summary>Destino del dispositivo</summary>
+<code>{{ source['transport'] === 'MQTT' ? source['mqtt_topic'] : source['https_path'] }}</code>
+<p>Sin credenciales en la URL. Usa la credencial de esta fuente.</p>
+</details>
+</div>
+</td>
+<td role="cell" data-label="Acciones">
+<div class="cluster">@if (canManage()) { <button class="button" [disabled]="busy()" (click)="startSource(source)">Editar</button>
+<button class="button" [disabled]="busy()" (click)="rotate(source)">Rotar credencial</button>
+<button class="button" [disabled]="busy()" (click)="toggle('sources',source)">{{ source['is_active'] ? 'Desactivar' : 'Reactivar' }}</button> }</div>
+</td>
+</tr> }
+    </tbody>
+</table>
+</section>
+  }
+}
+@if (tab === 'profiles') {
+  <header class="section-title">
+<div>
+<h2>Modelos de datos versionados</h2>
+<p>Configura campos y conversiones, no tablas SQL ni código ejecutable.</p>
+</div>@if (canManage()) { <button class="button button--primary" [disabled]="busy()" (click)="startProfile()">Nuevo perfil</button> }</header>
+  @if (editingProfile()) { <app-profile-editor [base]="baseProfile()" [busy]="busy()" [attr.inert]="busy() ? '' : null" (published)="publish($event)" (cancelled)="discardEditors()" /> }
+  @for (profile of profiles(); track profile.external_id) {
+    <article class="panel card-body stack">
+<div class="cluster">
+<h3>{{ profile.name }} · v{{ profile.version }}</h3>
+<span class="badge" [attr.data-status]="profile.is_active ? 'SUCCESS' : 'OFFLINE'">{{ profile.is_active ? 'Publicado' : 'Desactivado' }}</span>
+</div>
+<p>{{ profile.description }}</p>
+<small class="mono">{{ profile.code }}</small>
+      <ul>@for (field of profile.mappings; track field.sensor_key) { <li>
+<strong>{{ field.path }}</strong> → {{ field.sensor_key }} · {{ field.metric }} · {{ field.unit || 'sin unidad' }} · {{ field.data_type }}@if (field.data_type === 'NUMBER') { <small> × {{ field.scale }} + {{ field.offset }}</small> }</li> }</ul>
+      @if (canManage()) { <div class="cluster">
+<button class="button" [disabled]="busy()" (click)="startProfile(profile)">Nueva versión</button>
+<button class="button" [disabled]="busy()" (click)="toggle('profiles',profile)">{{ profile.is_active ? 'Desactivar versión' : 'Reactivar versión' }}</button>
+</div> }
+    </article>
+  } @empty { @if (!loading()) { <p class="empty-state">Aún no hay perfiles. Define el primer formato de dispositivo.</p> } }
+  @if (canManage()) {
+    <form class="panel card-body stack" (ngSubmit)="simulate()">
+<h2>Probar normalización sin guardar mediciones</h2>
+<p>Selecciona un dispositivo cuyos sensores coincidan con el modelo y pega un mensaje sin credenciales.</p>
+      <label class="field">Perfil *<select name="previewProfile" [(ngModel)]="previewProfileId" required>
+<option value="">Seleccionar…</option>@for (profile of activeProfiles(); track profile.external_id) { <option [value]="profile.external_id">{{ profile.name }} · v{{ profile.version }}</option> }</select>
+</label>
+      <label class="field">Dispositivo *<select name="previewDevice" [(ngModel)]="previewDeviceId" required>
+<option value="">Seleccionar…</option>@for (device of devices(); track device.external_id) { <option [value]="device.external_id">{{ device['name'] }}</option> }</select>
+</label>
+      <label class="field">Mensaje JSON<textarea name="sample" [(ngModel)]="sample" rows="8" maxlength="65536" spellcheck="false" required>
+</textarea>
+</label>
+<div class="cluster">
+<button class="button" type="button" (click)="newSample()">Generar ejemplo de humedad</button>
+<button class="button button--primary" type="submit" [disabled]="busy()">Validar y normalizar</button>
+</div>
+      @if (preview()) { <h3>Salida normalizada — no se guardó telemetría</h3>
+<pre class="log-panel">{{ preview() | json }}</pre> }
+    </form>
+  }
+}
+@if (tab === 'messages') {
+  <h2>Últimos 20 mensajes aceptados</h2>
+<p>Los reenvíos idénticos no duplican mediciones. Los errores autenticados quedan en auditoría.</p>
+  @for (message of messages(); track message.external_id) { <article class="panel card-body stack">
+<strong>{{ date(message['received_at']) }} · {{ message['reading_count'] }} lecturas</strong>
+<p>{{ message['normalized']?.source?.transport }} · modelo v{{ message['normalized']?.source?.profile_version }}</p>
+<details>
+<summary>Ver contrato común y referencias públicas</summary>
+<pre class="log-panel">{{ message['normalized'] | json }}</pre>
+</details>
+</article> }
+  @empty { @if (!loading()) { <p class="empty-state">Todavía no se han aceptado mensajes de integración.</p> } }
+}

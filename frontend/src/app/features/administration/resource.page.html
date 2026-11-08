@@ -9,7 +9,7 @@
   </div>
   @if (canManage()) {
   <button class="button button--primary" (click)="open('create')">
-    <app-icon name="plus" />Crear registro
+    <app-icon name="plus" />Crear {{ itemName() }}
   </button>
   }
 </header>
@@ -46,7 +46,7 @@
         >Acción<select name="action" [(ngModel)]="auditAction">
           <option value="">Todas las acciones</option>
           @for (action of auditActions; track action) {
-          <option [value]="action">{{ action }}</option>
+          <option [value]="action">{{ enumLabel(action) }}</option>
           }
         </select></label
       ><label class="field"
@@ -57,7 +57,9 @@
         </select></label
       ><button class="button" type="submit">Filtrar</button>
     </form>
-    }<button
+    }
+    @if (hasFilters()) { <button class="button" [disabled]="loading()" (click)="clearFilters()">Limpiar filtros</button> }
+    <button
       class="button button--ghost"
       [disabled]="loading()"
       (click)="load()"
@@ -77,11 +79,14 @@
   } @else if (!rows().length) {
   <div class="empty-state">
     <app-icon name="layers" />
-    <h2>{{ search ? 'No hay coincidencias' : 'Aún no hay registros' }}</h2>
+    <h2>{{ hasFilters() ? 'No hay coincidencias' : 'Aún no hay registros' }}</h2>
     <p>
-      {{ search ? 'Prueba con otro término de búsqueda.' : 'Los registros de tu
+      {{ hasFilters() ? 'Prueba con otros filtros o limpia la búsqueda.' : 'Los registros de tu
       organización aparecerán aquí.' }}
     </p>
+    @if (hasFilters()) { <button class="button" (click)="clearFilters()">Mostrar todos</button> }
+    @else if (canManage()) { <button class="button button--primary" (click)="open('create')">Crear {{ itemName() }}</button> }
+    @if (key === 'devices' || key === 'sensors' || key === 'projects') { <a routerLink="/app/help">Consultar guía de primeros pasos</a> }
   </div>
   } @else {
   <div
@@ -89,40 +94,47 @@
     tabindex="0"
     [attr.aria-label]="'Tabla de ' + definition.title"
   >
-    <table>
+    <table class="operational-table" role="table">
       <caption class="sr-only">
         {{ definition.title }}
       </caption>
-      <thead>
-        <tr>
+      <thead role="rowgroup">
+        <tr role="row">
           @for (column of definition.columns; track column.key) {
           <th scope="col">{{ column.label }}</th>
           }
           <th scope="col">Acciones</th>
         </tr>
       </thead>
-      <tbody>
+      <tbody role="rowgroup">
         @for (row of rows(); track row.external_id) {
-        <tr>
+        <tr role="row">
           @for (column of definition.columns; track column.key) {
-          <td>
+          <td [attr.data-label]="column.label" role="cell">
             @if (column.key === 'status') {
             <span class="badge" [attr.data-status]="value(row, column.key)"
               >{{ display(row, column.key) }}</span
             >
+            } @else if (key === 'sensors' && column.key === 'device.name' && row['device']?.external_id && state.has('devices.read')) {
+            <a [routerLink]="['/app/device', row['device'].external_id]">{{ display(row, column.key) }}</a>
             } @else {
             <span class="cell-value">{{ display(row, column.key) }}</span> }
           </td>
           }
-          <td>
+          <td data-label="Acciones" role="cell">
             <div class="row-actions">
-              <button
+              @if (key === 'projects' && row['is_active']) {
+                <a class="button button--primary" [routerLink]="['/app/projects', row.external_id]">Abrir tablero</a>
+              }
+              @if (key === 'devices') {
+                <a class="button button--primary" [routerLink]="['/app/device', row.external_id]" [attr.aria-label]="'Abrir dispositivo ' + label(row)">Abrir</a>
+              } @else { <button
                 class="button button--ghost"
                 (click)="open('detail', row)"
                 [attr.aria-label]="'Ver detalle de ' + label(row)"
               >
                 Detalle</button
-              >@if (canAssign(row)) {
+              > } @if (canAssign(row)) {
               <button
                 class="button button--ghost"
                 (click)="open('assign', row)"
@@ -153,7 +165,7 @@
   </div>
   }
   <div class="table-footer">
-    <span
+    <span role="status" aria-live="polite"
       >{{ total() }} registros · Página {{ page }} de {{ pages() || 1 }}</span
     >
     <nav class="pagination" aria-label="Paginación">
@@ -178,15 +190,15 @@
 <dialog
   #editor
   aria-labelledby="editor-title"
-  (cancel)="saving() ? $event.preventDefault() : close()"
+  (cancel)="$event.preventDefault(); close()"
   (close)="secret.set('')"
 >
-  <form [formGroup]="form" (ngSubmit)="save()">
+  <form appFormFocus [formGroup]="form" (ngSubmit)="save()" [attr.aria-busy]="saving() || preparing()">
     <div class="dialog-content stack">
       <div class="section-title">
         <h2 id="editor-title">
-          @switch (mode()) { @case ('create') { Nuevo registro } @case ('edit')
-          { Editar registro } @case ('delete') { Confirmar {{ key ===
+          @switch (mode()) { @case ('create') { Crear {{ itemName() }} } @case ('edit')
+          { Editar {{ itemName() }} } @case ('delete') { Confirmar {{ key ===
           'api-tokens' ? 'revocación' : 'desactivación' }} } @case ('assign') {
           Asignar {{ key === 'accounts' ? 'roles' : 'permisos' }} } @case
           ('secret') { Guarda tu token de API } @default { Detalle del registro
@@ -257,10 +269,16 @@
         }
       </div>
       } @default {
+      <p>Los campos con * son obligatorios. Los códigos se generan automáticamente.</p>
+      @if (invalidFields().length) {
+        <div class="alert" data-status="CRITICAL" role="alert"><div><strong>Revisa {{ invalidFields().length }} campos antes de guardar.</strong><ul>
+          @for (field of invalidFields(); track field.key) { <li><button type="button" class="button button--ghost" (click)="focusField(field.key)">{{ field.label }}: {{ fieldError(form.controls[field.key]) }}</button></li> }
+        </ul></div></div>
+      }
       <div class="editor-fields">
         @for (field of fields; track field.key) { @if (field.type === 'scopes')
         {
-        <fieldset class="full-field">
+        <fieldset class="full-field" [id]="'resource-' + field.key" tabindex="-1">
           <legend>{{ field.label }}</legend>
           <div class="assignment-list">
             @for (permission of state.identity()?.permissions || []; track
@@ -280,24 +298,32 @@
         </fieldset>
         } @else if (field.type === 'checkbox') {
         <label class="choice"
-          ><input type="checkbox" [formControlName]="field.key" />{{ field.label
+          ><input type="checkbox" [id]="'resource-' + field.key" [formControlName]="field.key" />{{ field.label
           }}</label
         >
         } @else {
         <label class="field"
           >{{ field.label }}{{ field.required ? ' *' : '' }}@if (field.type ===
           'select') {
-          <select [formControlName]="field.key">
+          <select [id]="'resource-' + field.key" [formControlName]="field.key" [attr.aria-required]="!!field.required" [attr.aria-invalid]="form.controls[field.key].touched && form.controls[field.key].invalid" [attr.aria-describedby]="form.controls[field.key].touched && form.controls[field.key].invalid ? 'resource-' + field.key + '-error' : null">
             <option value="">Seleccionar…</option>
             @for (option of field.options || []; track option) {
-            <option [value]="option">{{ option }}</option>
+            <option [value]="option">{{ field.key === 'status' || field.key === 'data_type' ? enumLabel(option) : option }}</option>
             } @for (item of choices()[field.key] || []; track item.external_id)
             {
             <option [value]="item.external_id">{{ label(item) }}</option>
             }
           </select>
+          } @else if (field.type === 'textarea') {
+            <textarea [id]="'resource-' + field.key" [formControlName]="field.key" rows="4" [attr.maxlength]="field.max" [attr.aria-required]="!!field.required" [attr.aria-invalid]="form.controls[field.key].touched && form.controls[field.key].invalid" [attr.aria-describedby]="form.controls[field.key].touched && form.controls[field.key].invalid ? 'resource-' + field.key + '-error' : null"></textarea>
           } @else {
           <input
+            [id]="'resource-' + field.key"
+            [attr.aria-required]="!!field.required"
+            [attr.aria-describedby]="form.controls[field.key].touched && form.controls[field.key].invalid ? 'resource-' + field.key + '-error' : null"
+            [attr.min]="field.type === 'number' ? field.min : null"
+            [attr.max]="field.type === 'number' ? field.max : null"
+            [attr.maxlength]="field.type !== 'number' ? field.max : null"
             [type]="field.type || 'text'"
             [formControlName]="field.key"
             [attr.autocomplete]="field.type === 'password' ? 'new-password' : 'off'"
@@ -306,9 +332,8 @@
           />
           } @if (form.controls[field.key].touched &&
           form.controls[field.key].invalid) {
-          <small class="field-error"
-            >Revisa el valor{{ field.minLength ? ' (mínimo ' + field.minLength +
-            ' caracteres)' : '' }}.</small
+          <small class="field-error" [id]="'resource-' + field.key + '-error'"
+            >{{ fieldError(form.controls[field.key]) }}</small
           >
           }</label
         >

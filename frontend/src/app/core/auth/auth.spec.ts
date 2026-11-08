@@ -44,7 +44,6 @@ describe('Web authentication and authorization', () => {
   it('uses the cookie endpoint with CSRF header and no Authorization token', async () => {
     const storageWrite = spyOn(Storage.prototype, 'setItem');
     const pending = auth.login({
-      tenant_slug: 'qa-test',
       identifier: 'qa',
       password: 'test-only-password',
     });
@@ -52,6 +51,7 @@ describe('Web authentication and authorization', () => {
     expect(request.request.withCredentials).toBeTrue();
     expect(request.request.headers.get('X-Novax-CSRF')).toBe('1');
     expect(request.request.headers.has('Authorization')).toBeFalse();
+    expect(request.request.body.tenant_slug).toBeUndefined();
     request.flush({ data: testIdentity });
     await pending;
     expect(state.identity()?.account.username).toBe('qa-user');

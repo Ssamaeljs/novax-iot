@@ -29,7 +29,7 @@ interface Metric {
   template: `<header class="section-title">
       <div>
         <p class="eyebrow">VISTA GENERAL</p>
-        <h1>Hola, {{ state.identity()?.user?.first_name }}</h1>
+        <h1>Centro de operaciones</h1>
         <p>
           Este es el estado registrado de tu organización.
           {{ updated() ? 'Actualizado: ' + updated() : '' }}
@@ -39,6 +39,12 @@ interface Metric {
         <app-icon name="activity" />Actualizar
       </button>
     </header>
+    <nav class="cluster operational-actions" aria-label="Acciones operativas">
+      @if (state.has('measurements.write')) { <a class="button button--primary" routerLink="/app/operations/measurements">Registrar lectura</a> }
+      @if (state.has('measurements.read')) { <a class="button" routerLink="/app/monitoring">Consultar mediciones</a> }
+      @if (state.has('devices.read')) { <a class="button" routerLink="/app/operations/devices">Gestionar dispositivos</a> }
+      @if (state.has('projects.read')) { <a class="button" routerLink="/app/projects">Abrir tableros</a> }
+    </nav>
     <div class="metrics">
       @for (metric of metrics(); track metric.label) {
         <a class="card card-body metric" [routerLink]="metric.target"
@@ -103,8 +109,8 @@ interface Metric {
       </section>
     </div>
     <p class="scope-note">
-      <app-icon name="info" /> Los estados provienen del backend. El inventario
-      ONVIF no incluye todavía reproducción de video ni comandos remotos.
+      <app-icon name="info" /> La ingesta admite HTTPS y MQTT mediante fuentes configuradas.
+      La conexión al broker y los tiempos de presencia se consultan en Integraciones.
     </p>`,
   styles: `
     .eyebrow {
@@ -168,6 +174,13 @@ interface Metric {
         grid-template-columns: 1fr;
       }
     }
+    @media (max-width: 600px) {
+      .operational-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
+      .operational-actions .button { padding: .6rem .45rem; }
+      .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
+      .metric { gap: .65rem; }
+      .metric .cluster { overflow-wrap: anywhere; }
+    }
   `,
 })
 export class OverviewPage implements OnInit {
@@ -187,7 +200,7 @@ export class OverviewPage implements OnInit {
       target: '/app/operations/devices',
     },
     {
-      label: 'Estado ONLINE',
+      label: 'Conectados (estado reportado)',
       path: 'iot/devices',
       permission: 'devices.read',
       icon: 'signal',
@@ -195,7 +208,7 @@ export class OverviewPage implements OnInit {
       target: '/app/operations/devices',
     },
     {
-      label: 'Estado OFFLINE',
+      label: 'Desconectados (estado reportado)',
       path: 'iot/devices',
       permission: 'devices.read',
       icon: 'offline',

@@ -30,7 +30,7 @@ export class LandingPage {
       number: '03',
       icon: 'shield',
       title: 'Controla quién puede actuar',
-      text: 'Organizaciones aisladas, roles, permisos y auditoría. Acceso claro para cada integrante de tu equipo.',
+      text: 'Roles, permisos y auditoría para NOVAX. Acceso claro para cada integrante de tu equipo.',
     },
   ];
 }

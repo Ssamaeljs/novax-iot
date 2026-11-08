@@ -1,11 +1,12 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const crypto = require("node:crypto");
+const bcrypt = require("bcrypt");
 
 // Opt-in integration suite: every fixture/query is enclosed in a rolled-back transaction.
 // It never changes existing accounts or sends mail. Use only with the local development DB.
 test(
-  "web identity, tenant isolation, RBAC, CRUD and password recovery",
+  "NOVAX-only web identity, credential isolation, RBAC, CRUD and password recovery",
   { skip: process.env.RUN_DATABASE_TESTS !== "1", timeout: 60000 },
   async (t) => {
     require("dotenv").config({ quiet: true });
@@ -20,8 +21,14 @@ test(
       Account,
       PasswordReset,
       Session,
+      Tenant,
+      User,
+      Role,
+      Permission,
+      Device,
+      ApiToken,
     } = require("../src/config/models");
-    const { hashToken } = require("../src/utils/security/apiToken");
+    const { hashToken, generateSessionToken, generateApiToken } = require("../src/utils/security/apiToken");
     const mailer = require("../src/modules/module-iam/auth/passwordMailer");
     const originalQuery = sequelize.query.bind(sequelize);
     const originalTransaction = sequelize.transaction.bind(sequelize);
@@ -102,8 +109,21 @@ test(
     let sensor;
     let readonlyCookie;
     try {
+      async function fixtureOrganization(tenantSlug) {
+        const organization = await Tenant.create({ name: "NOVAX integration QA", slug: tenantSlug, timezone: "America/Guayaquil" });
+        const user = await User.create({ tenant_id: organization.id, first_name: "Test", last_name: "Owner", id_card: "QA-12345" });
+        const account = await Account.create({ tenant_id: organization.id, user_id: user.id, username: "owner", email: payload.email, password_hash: await bcrypt.hash(password, 4) });
+        const role = await Role.create({ tenant_id: organization.id, code: "TENANT_OWNER", name: "Owner", is_system: true });
+        await role.setPermissions(await Permission.findAll({ where: { is_active: true } }));
+        await account.setRoles([role]);
+        return { organization, account };
+      }
+      const novax = await fixtureOrganization(slug);
+      const other = await fixtureOrganization(`${slug}-other`);
+      tenant = novax.organization;
+      process.env.NOVAX_TENANT_EXTERNAL_ID = tenant.external_id;
       await t.test(
-        "registration is opt-in, rejects role injection and creates isolated tenant owners",
+        "registration remains disabled even if a previous deployment enables its flag",
         async () => {
           process.env.PUBLIC_REGISTRATION_ENABLED = "false";
           assert.equal(
@@ -119,24 +139,15 @@ test(
                 body: { ...payload, role: "ADMIN" },
               })
             ).status,
-            422,
+            403,
           );
           const registered = await request("auth/register", {
             method: "POST",
             body: payload,
           });
-          assert.equal(registered.status, 201);
-          publicOnly(registered.body);
-          tenant = registered.body.data.tenant;
-          assert.equal(
-            (
-              await request("auth/register", {
-                method: "POST",
-                body: { ...payload, tenant_slug: `${slug}-other` },
-              })
-            ).status,
-            201,
-          );
+          assert.equal(registered.status, 403);
+          assert.equal((await request("auth/capabilities")).body.data.registration_enabled, false);
+          assert.equal(await Tenant.count(), 2);
         },
       );
       await t.test(
@@ -144,7 +155,7 @@ test(
         async () => {
           const login = await request("auth/web/login", {
             method: "POST",
-            body: { tenant_slug: slug, identifier: payload.username, password },
+            body: { identifier: payload.username, password },
           });
           assert.equal(login.status, 201);
           publicOnly(login.body);
@@ -174,7 +185,6 @@ test(
             method: "POST",
             cookie,
             body: {
-              code: "QA-ESP32",
               name: "Secretaría",
               device_type: "ESP32",
               protocol: "MQTT",
@@ -183,6 +193,8 @@ test(
           });
           assert.equal(created.status, 201);
           device = created.body.data;
+          assert.match(device.code, /^DEV-[A-F0-9]{32}$/);
+          assert.equal((await request(`iot/devices/${device.external_id}`, { method: "PATCH", cookie, body: { code: "MANUAL" } })).body.code, "UNKNOWN_FIELDS");
           const createdSensor = await request("iot/sensors", {
             method: "POST",
             cookie,
@@ -224,7 +236,7 @@ test(
             cookie,
           });
           assert.equal(list.body.pagination.total, 1);
-          const other = await request("auth/web/login", {
+          const otherLogin = await request("auth/web/login", {
             method: "POST",
             body: {
               tenant_slug: `${slug}-other`,
@@ -232,20 +244,31 @@ test(
               password,
             },
           });
-          const otherCookie = other.headers.get("set-cookie").split(";")[0];
+          assert.equal(otherLogin.status, 401);
+          const oldSession = generateSessionToken();
+          await Session.create({ tenant_id: other.organization.id, account_id: other.account.id, token_hash: oldSession.tokenHash, token_prefix: oldSession.tokenPrefix, expires_at: new Date(Date.now() + 60000) });
+          const otherCookie = `novax_session=${oldSession.token}`;
           assert.equal(
             (
               await request(`iot/devices/${device.external_id}`, {
                 cookie: otherCookie,
               })
             ).status,
-            404,
+            401,
           );
           assert.equal(
-            (await request("iot/devices", { cookie: otherCookie })).body
-              .pagination.total,
-            0,
+            (await request("iot/devices", { cookie: otherCookie })).status,
+            401,
           );
+          const oldToken = generateApiToken();
+          await ApiToken.create({ tenant_id: other.organization.id, account_id: other.account.id, name: "Foreign fixture token", token_hash: oldToken.tokenHash, token_prefix: oldToken.tokenPrefix, scopes: ["devices.read"] });
+          const forbidden = await fetch(base + "iot/devices", { headers: { Authorization: `Bearer ${oldToken.token}` } });
+          assert.equal(forbidden.status, 401);
+          const foreignDevice = await Device.create({ tenant_id: other.organization.id, code: "OTHER", name: "Other fixture", device_type: "SIMULATOR", protocol: "HTTP" });
+          assert.equal((await request(`iot/devices/${foreignDevice.external_id}`, { cookie })).status, 404);
+          const resetToken = crypto.randomBytes(32).toString("base64url");
+          await PasswordReset.create({ tenant_id: other.organization.id, account_id: other.account.id, token_hash: hashToken(resetToken), expires_at: new Date(Date.now() + 60000) });
+          assert.equal((await request("auth/reset-password", { method: "POST", body: { token: resetToken, password: "unaccepted-fixture-password" } })).status, 422);
         },
       );
       await t.test(
@@ -274,8 +297,11 @@ test(
           const role = await request("iam/roles", {
             method: "POST",
             cookie,
-            body: { code: "READ_ONLY", name: "Consulta" },
+            body: { name: "Consulta" },
           });
+          assert.equal(role.status, 201);
+          assert.match(role.body.data.code, /^ROL-[A-F0-9]{32}$/);
+          assert.equal((await request(`iam/roles/${role.body.data.external_id}`, { method: "PATCH", cookie, body: { code: "TENANT_OWNER" } })).body.code, "UNKNOWN_FIELDS");
           assert.equal(
             (
               await request(
@@ -304,7 +330,7 @@ test(
           );
           const login = await request("auth/web/login", {
             method: "POST",
-            body: { tenant_slug: slug, identifier: "reader", password },
+            body: { identifier: "reader", password },
           });
           readonlyCookie = login.headers.get("set-cookie").split(";")[0];
           assert.equal(
@@ -391,7 +417,7 @@ test(
           mailer.sendReset = async (_recipient, token) => finish(token);
           const known = await request("auth/forgot-password", {
             method: "POST",
-            body: { tenant_slug: slug, email: payload.email },
+            body: { email: payload.email },
           });
           assert.equal(known.status, 202);
           const raw = await Promise.race([
@@ -407,10 +433,11 @@ test(
             where: { token_hash: hashToken(raw) },
           });
           assert.ok(stored);
+          assert.equal(stored.tenant_id, tenant.id);
           assert.notEqual(stored.token_hash, raw);
           const unknown = await request("auth/forgot-password", {
             method: "POST",
-            body: { tenant_slug: slug, email: "absent@example.test" },
+            body: { email: "absent@example.test" },
           });
           assert.deepEqual(unknown.body, known.body);
           // Allow the fire-and-forget lookup to finish before releasing the test transaction.
@@ -471,6 +498,7 @@ test(
         "WEB_ORIGIN",
         "SMTP_HOST",
         "SMTP_FROM",
+        "NOVAX_TENANT_EXTERNAL_ID",
       ]) {
         if (originalEnv[name] === undefined) delete process.env[name];
         else process.env[name] = originalEnv[name];

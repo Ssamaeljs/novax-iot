@@ -13,19 +13,19 @@ import {
 import { firstValueFrom } from 'rxjs';
 import { ApiService, errorMessage } from '../../core/api/api.service';
 import { AuthState } from '../../core/auth/auth-state.service';
+import { FormFocusDirective } from '../../shared/ui/form-focus.directive';
 @Component({
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, FormFocusDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `<header class="section-title">
       <div>
         <h1>Opciones avanzadas</h1>
-        <p>Administración de la organización · Solo TENANT_OWNER</p>
+        <p>Administración de NOVAX · Acceso restringido al propietario</p>
       </div>
     </header>
     <section class="card card-body stack advanced">
       <p class="alert" data-status="WARNING">
-        Estos cambios afectan a todos los miembros. Si modificas el
-        identificador, deberán usar el nuevo al iniciar sesión.
+        Estos cambios afectan a todos los integrantes de NOVAX.
       </p>
       @if (error()) {
         <p class="alert" data-status="CRITICAL" role="alert">{{ error() }}</p>
@@ -33,11 +33,9 @@ import { AuthState } from '../../core/auth/auth-state.service';
       @if (message()) {
         <p class="alert" data-status="SUCCESS" role="status">{{ message() }}</p>
       }
-      <form class="stack" [formGroup]="form" (ngSubmit)="save()">
+      <form appFormFocus class="stack" [formGroup]="form" (ngSubmit)="save()" [attr.aria-busy]="busy()">
         <label class="field"
           >Nombre de la organización<input formControlName="name" /></label
-        ><label class="field"
-          >Identificador de acceso<input formControlName="slug" /></label
         ><label class="field"
           >Zona horaria IANA<input formControlName="timezone" /><small
             >Por ejemplo: America/Guayaquil.</small
@@ -45,8 +43,7 @@ import { AuthState } from '../../core/auth/auth-state.service';
         >
         @if (form.touched && form.invalid) {
           <small class="field-error"
-            >Revisa los campos obligatorios y el formato del
-            identificador.</small
+            >Revisa el nombre y la zona horaria.</small
           >
         }
         <button
@@ -77,14 +74,6 @@ export class AdvancedPage {
         Validators.required,
         Validators.minLength(2),
         Validators.maxLength(120),
-      ],
-    }),
-    slug: new FormControl(this.state.identity()!.tenant.slug, {
-      nonNullable: true,
-      validators: [
-        Validators.required,
-        Validators.maxLength(80),
-        Validators.pattern(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
       ],
     }),
     timezone: new FormControl(this.state.identity()!.tenant.timezone, {

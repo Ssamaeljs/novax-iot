@@ -11,6 +11,7 @@ const {
 const { hashToken } = require("../utils/security/apiToken");
 const AppError = require("../utils/handleError/AppError");
 const handleError = require("../utils/handleError/handleError");
+const { organizationScope } = require("../config/organization");
 const {
   readSessionCookie,
   assertWebRequest,
@@ -18,7 +19,7 @@ const {
 
 function credentialIncludes() {
   return [
-    { model: Tenant, as: "tenant", required: true, where: { is_active: true } },
+    { model: Tenant, as: "tenant", required: true, where: organizationScope() },
     {
       model: Account,
       as: "account",

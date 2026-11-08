@@ -2,6 +2,7 @@ const { Op } = require("sequelize");
 const AppError = require("../../utils/handleError/AppError");
 const { recordAudit } = require("../../modules/module-audit/auditLogs/auditWriter");
 const DynamicValidator = require("./DynamicValidator");
+const automaticCode = require("../../utils/automaticCode");
 
 const RESERVED_QUERY_FIELDS = new Set([
   "page",
@@ -17,6 +18,7 @@ class AutoCrudService {
     if (!options?.model) throw new Error("AutoCrudService requires a Sequelize model");
 
     this.model = options.model;
+    this.automaticCodePrefix = options.automaticCodePrefix;
     this.publicId = options.publicId || "external_id";
     this.writableFields = options.writableFields || this.#inferWritableFields();
     this.virtualFields = options.virtualFields || [];
@@ -110,6 +112,7 @@ class AutoCrudService {
         ? await this.hooks.transformInput("create", rawPayload, context, transaction)
         : rawPayload;
       const payload = this.#sanitizePayload(transformed);
+      if (this.automaticCodePrefix) payload.code = automaticCode(this.automaticCodePrefix);
       this.#applyTenant(payload, context);
 
       if (this.hooks.beforeCreate) {

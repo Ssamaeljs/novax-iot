@@ -16,6 +16,8 @@ if (process.env.NODE_ENV !== "production")
   allowedOrigins.push("http://localhost:4200", "http://127.0.0.1:4200");
 
 app.disable("x-powered-by");
+// Only explicit proxy networks may influence req.secure / client IP.
+if (process.env.TRUST_PROXY) app.set("trust proxy", process.env.TRUST_PROXY.split(",").map((value) => value.trim()).filter(Boolean));
 app.use(
   cors({
     origin(origin, callback) {
@@ -67,14 +69,25 @@ async function start() {
   try {
     await sequelize.authenticate();
     console.log("✅ Database connected");
-
-    app.listen(process.env.PORT, () => {
+    const integration = require("./src/modules/module-integration/runtime").startRuntime();
+    const server = app.listen(process.env.PORT, () => {
       console.log(
         `☁️ NovaxIoT API running on http://localhost:${process.env.PORT}`,
       );
     });
+    let closing = false;
+    const shutdown = async () => {
+      if (closing) return;
+      closing = true;
+      const closed = new Promise((resolve) => server.close(resolve));
+      await integration.stop();
+      await closed;
+      await sequelize.close();
+    };
+    process.once("SIGINT", () => void shutdown());
+    process.once("SIGTERM", () => void shutdown());
   } catch (error) {
-    console.error("Database connection failed", {
+    console.error("API startup failed", {
       name: error.name,
       code: error.original?.code,
     });

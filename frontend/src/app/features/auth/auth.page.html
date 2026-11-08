@@ -1,4 +1,4 @@
-<section class="auth-shell" [class.registration]="mode === 'register'">
+<section class="auth-shell">
   <aside class="auth-context">
     <span class="eyebrow">NOVAX IoT / ACCESO SEGURO</span>
     <h2>Un espacio para<br />toda tu infraestructura.</h2>
@@ -9,10 +9,9 @@
     <div class="security-item">
       <app-icon name="shield" />
       <div>
-        <strong>Tu organización, tu entorno</strong>
+        <strong>Acceso al entorno NOVAX</strong>
         <p>
-          La información y los permisos se mantienen separados entre
-          organizaciones.
+          Cada integrante accede a las funciones autorizadas para su trabajo.
         </p>
       </div>
     </div>
@@ -27,14 +26,12 @@
   </aside>
   <div class="card auth-card">
     <p class="eyebrow">
-      {{ mode === 'register' ? 'NUEVA ORGANIZACIÓN' : 'TU WORKSPACE' }}
+      NOVAX / TU ESPACIO DE TRABAJO
     </p>
     <h1>{{ headings[mode] }}</h1>
     <p class="description">
       @switch (mode) { @case ('login') { Utiliza las credenciales de tu
-      organización. } @case ('register') { Crearás una organización
-      independiente y serás su propietario. Para unirte a una existente,
-      solicita una cuenta a su administrador. } @case ('forgot-password') { Te
+      cuenta NOVAX. } @case ('forgot-password') { Te
       enviaremos un enlace de un solo uso al correo de tu cuenta. } @case
       ('reset-password') { Al actualizar tu contraseña se cerrarán todas tus
       sesiones activas. } }
@@ -43,12 +40,6 @@
     <p class="alert" data-status="CRITICAL" role="alert">{{ error() }}</p>
     } @if (message()) {
     <p class="alert" data-status="INFO" role="status">{{ message() }}</p>
-    } @if (ready() && mode === 'register' &&
-    !capabilities().registration_enabled) {
-    <p class="alert" role="status">
-      El registro público aún no está habilitado. Contacta al administrador para
-      crear tu organización.
-    </p>
     } @if (ready() && mode === 'forgot-password' &&
     !capabilities().password_recovery_enabled) {
     <p class="alert" role="status">
@@ -56,7 +47,7 @@
       para recuperar tu acceso.
     </p>
     }
-    <form [formGroup]="form" (ngSubmit)="submit()" class="stack">
+    <form appFormFocus [formGroup]="form" (ngSubmit)="submit()" class="stack" [attr.aria-busy]="busy()">
       <div class="auth-fields">
         @for (field of fields; track field.key) {
         <label class="field"
@@ -95,8 +86,7 @@
       </button>
     </form>
     <p class="auth-bottom">
-      @if (mode === 'login') { ¿Tu equipo aún no tiene un espacio?
-      <a routerLink="/auth/register">Crear organización</a> } @else {
+      @if (mode === 'login') { Para obtener acceso, solicita una cuenta al administrador de NOVAX. } @else {
       <a routerLink="/auth/login">Volver a iniciar sesión</a> }
     </p>
   </div>

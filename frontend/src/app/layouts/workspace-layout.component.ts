@@ -9,6 +9,7 @@ import { NavbarComponent } from '../shared/layout/navbar.component';
 import { FooterComponent } from '../shared/layout/footer.component';
 import { NavigationComponent } from '../shared/layout/navigation.component';
 import { IconComponent } from '../shared/ui/icon.component';
+import { BreadcrumbsComponent } from '../shared/layout/breadcrumbs.component';
 @Component({
   imports: [
     RouterOutlet,
@@ -16,6 +17,7 @@ import { IconComponent } from '../shared/ui/icon.component';
     FooterComponent,
     NavigationComponent,
     IconComponent,
+    BreadcrumbsComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `<button class="skip-link" (click)="content.focus()">
@@ -24,7 +26,7 @@ import { IconComponent } from '../shared/ui/icon.component';
     <aside class="sidebar"><app-navigation /></aside>
     <div class="workspace">
       <app-navbar [workspace]="true" (menu)="openNavigation()" />
-      <main #content id="main-content" tabindex="-1"><router-outlet /></main>
+      <main #content id="main-content" tabindex="-1"><app-breadcrumbs /><router-outlet (activate)="focusPage()" /></main>
       <app-footer />
     </div>
     <dialog
@@ -99,6 +101,17 @@ import { IconComponent } from '../shared/ui/icon.component';
   `,
 })
 export class WorkspaceLayoutComponent {
+  private readonly content = viewChild<ElementRef<HTMLElement>>('content');
+  focusPage() {
+    queueMicrotask(() => {
+      const main = this.content()?.nativeElement;
+      if (!main?.isConnected) return;
+      const heading = main.querySelector<HTMLElement>('h1');
+      const target = heading || main;
+      target.setAttribute('tabindex', '-1');
+      target.focus({ preventScroll: true });
+    });
+  }
   private readonly mobileNavigation =
     viewChild.required<ElementRef<HTMLDialogElement>>('mobileNavigation');
   openNavigation() {

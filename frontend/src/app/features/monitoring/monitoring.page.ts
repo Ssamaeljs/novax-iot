@@ -7,10 +7,12 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subscription } from 'rxjs';
 import { ApiService, Entity, errorMessage } from '../../core/api/api.service';
 import { AuthState } from '../../core/auth/auth-state.service';
+import { enumLabel } from '../../shared/ui/enum-label';
 import {
   MeasurementChartComponent,
   MeasurementPoint,
@@ -53,9 +55,9 @@ import {
       ><label class="field"
         >Calidad<select name="quality" [(ngModel)]="quality">
           <option value="">Todas</option>
-          <option>GOOD</option>
-          <option>UNCERTAIN</option>
-          <option>BAD</option>
+          <option value="GOOD">Buena</option>
+          <option value="UNCERTAIN">Incierta</option>
+          <option value="BAD">Mala</option>
         </select></label
       ><button
         class="button button--primary"
@@ -64,6 +66,7 @@ import {
       >
         Consultar
       </button>
+      <button class="button" type="button" [disabled]="loading()" (click)="clearFilters()">Limpiar filtros</button>
     </form>
     @if (sensorError()) {
       <p class="alert" data-status="WARNING">{{ sensorError() }}</p>
@@ -111,27 +114,28 @@ import {
           tabindex="0"
           aria-label="Historial de mediciones"
         >
-          <table>
-            <thead>
-              <tr>
+          <table class="operational-table" role="table">
+            <thead role="rowgroup">
+              <tr role="row">
                 <th scope="col">Fecha</th>
                 <th scope="col">Dispositivo / sensor</th>
                 <th scope="col">Valor</th>
                 <th scope="col">Calidad</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody role="rowgroup">
               @for (row of rows(); track row.external_id) {
-                <tr>
-                  <td>{{ date(row['observed_at']) }}</td>
-                  <td>
-                    <strong>{{ row['sensor']?.name }}</strong
+                <tr role="row">
+                  <td data-label="Fecha" role="cell">{{ date(row['observed_at']) }}</td>
+                  <td data-label="Dispositivo / sensor" role="cell">
+                    <div><strong>{{ row['sensor']?.name }}</strong
                     ><br /><small>{{ row['device']?.name }}</small>
+                    </div>
                   </td>
-                  <td class="reading">
+                  <td class="reading" data-label="Valor" role="cell">
                     {{ value(row['value']) }} {{ row['sensor']?.unit }}
                   </td>
-                  <td>
+                  <td data-label="Calidad" role="cell">
                     <span
                       class="badge"
                       [attr.data-status]="
@@ -141,7 +145,7 @@ import {
                             ? 'BAD'
                             : 'WARNING'
                       "
-                      >{{ row['quality'] }}</span
+                      >{{ enumLabel(row['quality']) }}</span
                     >
                   </td>
                 </tr>
@@ -212,9 +216,15 @@ import {
     .alert {
       margin-bottom: 1rem;
     }
+    @media (max-width: 600px) {
+      .filters { display: grid; grid-template-columns: minmax(0, 1fr); gap: .75rem; }
+      .filters .field { min-width: 0; }
+      .table-scroll { max-height: none; }
+    }
   `,
 })
 export class MonitoringPage implements OnInit {
+  readonly enumLabel = enumLabel;
   private readonly api = inject(ApiService);
   readonly state = inject(AuthState);
   private readonly destroyRef = inject(DestroyRef);
@@ -230,14 +240,18 @@ export class MonitoringPage implements OnInit {
   readonly total = signal(0);
   readonly pages = signal(0);
   sensor = '';
+  private readonly route = inject(ActivatedRoute);
+  readonly deviceId = this.route.snapshot?.queryParamMap?.get('device') || '';
   from = '';
   to = '';
   quality = '';
   page = 1;
+  clearFilters() { this.sensor = ''; this.from = ''; this.to = ''; this.quality = ''; this.load(true); }
   ngOnInit() {
+    this.sensor = this.route.snapshot?.queryParamMap?.get('sensor') || '';
     if (this.state.has('sensors.read'))
       void this.api
-        .options('iot/sensors')
+        .options('iot/sensors', this.deviceId ? { device_external_id: this.deviceId } : {})
         .then((rows) => this.sensors.set(rows))
         .catch((error) => this.sensorError.set(errorMessage(error)));
     else
@@ -270,6 +284,7 @@ export class MonitoringPage implements OnInit {
       page_size: 50,
     };
     if (this.sensor) query['sensor_external_id'] = this.sensor;
+    if (this.deviceId) query['device_external_id'] = this.deviceId;
     if (this.from) query['from'] = new Date(this.from).toISOString();
     if (this.to) query['to'] = new Date(this.to).toISOString();
     if (this.quality) query['quality'] = this.quality;

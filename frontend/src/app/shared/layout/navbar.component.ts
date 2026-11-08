@@ -16,7 +16,7 @@ import { errorMessage } from '../../core/api/api.service';
   selector: 'app-navbar',
   imports: [RouterLink, ThemeSelectorComponent, IconComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `<header class="navbar">
+  template: `<header class="navbar" [class.navbar--workspace]="workspace()">
       <div class="cluster">
         @if (workspace()) {
           <button
@@ -28,7 +28,7 @@ import { errorMessage } from '../../core/api/api.service';
           </button>
           <div class="tenant">
             <small>ESPACIO DE TRABAJO</small
-            ><strong>{{ state.identity()?.tenant?.name }}</strong>
+            ><strong [title]="state.identity()?.tenant?.name || ''">{{ state.identity()?.tenant?.name }}</strong>
           </div>
         } @else {
           <a routerLink="/" class="brand"
@@ -84,12 +84,7 @@ import { errorMessage } from '../../core/api/api.service';
             </nav>
           </details>
         } @else {
-          <a class="button button--ghost" routerLink="/auth/login">Ingresar</a
-          ><a
-            class="button button--primary register-link"
-            routerLink="/auth/register"
-            >Crear organización</a
-          >
+          <a class="button button--primary" routerLink="/auth/login">Ingresar</a>
         }
       </div>
     </header>
@@ -165,7 +160,6 @@ import { errorMessage } from '../../core/api/api.service';
       .actions {
         gap: 0.3rem;
       }
-      .register-link,
       .user-name {
         display: none;
       }
@@ -173,6 +167,13 @@ import { errorMessage } from '../../core/api/api.service';
         max-width: 180px;
       }
     }
+    @media (max-width: 600px) {
+      .navbar--workspace { flex-wrap: nowrap; padding: .6rem .75rem; gap: .5rem; min-height: 64px; }
+      .navbar--workspace > .cluster { min-width: 0; flex-wrap: nowrap; gap: .35rem; }
+      .navbar--workspace .tenant { max-width: 100px; }
+      .tenant strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    }
+    @media (max-width: 420px) { .navbar--workspace .tenant { display: none; } }
   `,
 })
 export class NavbarComponent {
