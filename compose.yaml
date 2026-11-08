@@ -1,0 +1,147 @@
+x-backend-image: &backend-image
+  image: novax-backend:local
+  pull_policy: never
+
+x-database-env: &database-env
+  DB_HOST: db
+  DB_PORT: '5432'
+  DB_NAME: ${NOVAX_DB_NAME:-novax_iot}
+  DB_USER: ${NOVAX_DB_USER:-novax_app}
+  DB_PASS: ${NOVAX_DB_PASSWORD:?Ejecuta docker/init-env.cjs para crear .env}
+  DB_LOGGING: 'false'
+  DB_BRANCH_DATABASES: 'false'
+
+x-publisher-env: &publisher-env
+  MQTT_URL: mqtt://mosquitto:1883
+  MQTT_TEST_USERNAME: ${MQTT_TEST_USERNAME:-novax_emitter}
+  MQTT_TEST_PASSWORD: ${MQTT_TEST_PASSWORD:?Configura MQTT_TEST_PASSWORD en .env}
+
+services:
+  db:
+    image: postgres:16-bookworm
+    environment:
+      POSTGRES_DB: ${NOVAX_DB_NAME:-novax_iot}
+      POSTGRES_USER: ${NOVAX_DB_USER:-novax_app}
+      POSTGRES_PASSWORD: ${NOVAX_DB_PASSWORD:?Ejecuta docker/init-env.cjs para crear .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+    networks: [data]
+
+  migrate:
+    <<: *backend-image
+    environment: *database-env
+    command: ['node', 'scripts/migrate.js', 'up']
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [data]
+    restart: 'no'
+
+  mosquitto:
+    image: novax-mosquitto:lab
+    build:
+      context: ./docker/mosquitto
+    environment:
+      MQTT_USERNAME: ${MQTT_USERNAME:-novax_backend}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:?Configura MQTT_PASSWORD en .env}
+      MQTT_TEST_USERNAME: ${MQTT_TEST_USERNAME:-novax_emitter}
+      MQTT_TEST_PASSWORD: ${MQTT_TEST_PASSWORD:?Configura MQTT_TEST_PASSWORD en .env}
+    ports:
+      - '127.0.0.1:${NOVAX_MQTT_PORT:-1883}:1883'
+    healthcheck:
+      test: ['CMD', '/usr/local/bin/novax-broker-health']
+      interval: 5s
+      timeout: 4s
+      retries: 12
+    restart: unless-stopped
+    networks: [mqtt]
+
+  backend:
+    <<: *backend-image
+    build:
+      context: ./backend
+    environment:
+      <<: *database-env
+      # Laboratorio: HTTP y MQTT sin TLS solo en loopback/redes Docker.
+      NODE_ENV: development
+      PORT: '5000'
+      WEB_ORIGIN: http://localhost:${NOVAX_WEB_PORT:-8080}
+      CORS_ORIGINS: http://127.0.0.1:${NOVAX_WEB_PORT:-8080}
+      NOVAX_TENANT_SLUG: novax-iot
+      BOOTSTRAP_SECRET: ${NOVAX_BOOTSTRAP_SECRET:?Configura NOVAX_BOOTSTRAP_SECRET en .env}
+      MQTT_ENABLED: '${MQTT_ENABLED:-true}'
+      MQTT_URL: ${MQTT_URL:-mqtt://mosquitto:1883}
+      MQTT_CLIENT_ID: ${MQTT_CLIENT_ID:-novax-ingestion-lab}
+      MQTT_USERNAME: ${MQTT_USERNAME:-novax_backend}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:?Configura MQTT_PASSWORD en .env}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      mosquitto:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:5000/api/health', {signal: AbortSignal.timeout(2000)}).then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    init: true
+    restart: unless-stopped
+    networks: [data, web, mqtt]
+
+  frontend:
+    image: novax-frontend:local
+    build:
+      context: ./frontend
+    ports:
+      - '127.0.0.1:${NOVAX_WEB_PORT:-8080}:8080'
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:8080/index.csr.html']
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+    networks: [web]
+
+  mqtt-test:
+    <<: *backend-image
+    profiles: [tools]
+    command: ['node', 'scripts/compose-mqtt-send.js']
+    environment: *publisher-env
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    networks: [mqtt]
+
+  smoke:
+    <<: *backend-image
+    profiles: [tools]
+    command: ['node', 'scripts/compose-smoke.js']
+    environment:
+      <<: *publisher-env
+      NOVAX_SMOKE_ALLOWED: '${NOVAX_SMOKE_ALLOWED:-false}'
+      BOOTSTRAP_SECRET: ${NOVAX_BOOTSTRAP_SECRET:?Configura NOVAX_BOOTSTRAP_SECRET en .env}
+      WEB_ORIGIN: http://localhost:${NOVAX_WEB_PORT:-8080}
+    depends_on:
+      frontend:
+        condition: service_healthy
+    networks: [web, mqtt]
+
+networks:
+  data:
+    internal: true
+  web:
+  mqtt:
+
+volumes:
+  postgres_data:

@@ -1,0 +1,5 @@
+*
+!Dockerfile
+!mosquitto.conf
+!entrypoint.sh
+!healthcheck.sh
