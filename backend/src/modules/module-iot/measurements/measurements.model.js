@@ -16,6 +16,9 @@ module.exports = (sequelize, DataTypes) => {
       quality: { type: DataTypes.STRING(20), allowNull: false, defaultValue: "GOOD" },
       sequence: { type: DataTypes.STRING(80), allowNull: true },
       source_payload: { type: DataTypes.JSONB, allowNull: true },
+      integration_message_id: { type: DataTypes.INTEGER, allowNull: true },
+      metric_snapshot: { type: DataTypes.STRING(100), allowNull: true },
+      unit_snapshot: { type: DataTypes.STRING(30), allowNull: true },
     },
     {
       tableName: "measurements",

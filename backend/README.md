@@ -1,12 +1,26 @@
 # Novax IoT API
 
-API modular para identidad, autorización y administración inicial de dispositivos IoT.
+API modular para identidad, autorización y administración inicial de dispositivos IoT de NOVAX.
+
+## Operación exclusiva para NOVAX
+
+La instalación utiliza una única organización operativa. El backend la resuelve mediante
+`NOVAX_TENANT_EXTERNAL_ID` o, si no se configura, `NOVAX_TENANT_SLUG` (por defecto `novax-iot`).
+No selecciona automáticamente el primer tenant de la base ni crea organizaciones al arrancar.
+Si NOVAX no existe o está inactiva, el acceso falla explícitamente. No se elimina ningún dato existente.
+
+Se conservan `core.tenants`, las relaciones `tenant_id` y sus filtros como estructura interna.
+Sesiones y tokens de otras organizaciones quedan excluidos del acceso, aunque sigan almacenados.
+El registro público está cerrado incluso si un `.env` anterior contiene `PUBLIC_REGISTRATION_ENABLED=true`.
+El alta se realiza creando usuario, cuenta y asignando roles desde administración.
+`TENANT_OWNER` se conserva como código interno del propietario de NOVAX.
 
 ## Módulos
 
 - `core`: tenants, usuarios y cuentas.
 - `iam`: permisos, roles y tokens opacos de API.
 - `iot`: dispositivos, sensores y mediciones.
+- `integration`: perfiles versionados, fuentes con credenciales acotadas e ingesta común HTTPS/MQTT. [Guía del contrato y configuración](docs/integration-common-model.md) y [evidencia del incremento](docs/increments/2026-10-18-common-ingestion-https-mqtt.md).
 - `audit`: historial inmutable y multi-tenant de operaciones administrativas.
 - `helpers/autoCrud`: CRUD reutilizable con validación declarativa, tenant scope, búsqueda, filtros y paginación.
 
@@ -19,18 +33,21 @@ API modular para identidad, autorización y administración inicial de dispositi
 
 ### Login de usuarios
 
-El login requiere el tenant porque un mismo correo o nombre de usuario puede existir en tenants diferentes:
+El login resuelve NOVAX en el servidor; solo necesita usuario/correo y contraseña:
 
 ```http
 POST /v1/api/auth/login
 Content-Type: application/json
 
 {
-  "tenant_slug": "novax-iot",
   "identifier": "admin-novax",
   "password": "<password>"
 }
 ```
+
+Los clientes anteriores pueden enviar el `tenant_slug` de NOVAX; otro slug se rechaza.
+La web utiliza `POST /v1/api/auth/web/login` con cookie HttpOnly. La recuperación
+`POST /v1/api/auth/forgot-password` recibe únicamente `email`; el slug anterior es opcional.
 
 La respuesta entrega una sesión opaca `nvx_session_...` una sola vez. No es un JWT y la base
 solo almacena su hash SHA-256. La sesión se usa con `Authorization: Bearer <token>`.
@@ -54,8 +71,8 @@ X-Bootstrap-Secret: <secret>
 Content-Type: application/json
 
 {
-  "tenant_name": "Novax Demo",
-  "tenant_slug": "novax-demo",
+  "tenant_name": "NOVAX",
+  "tenant_slug": "novax-iot",
   "timezone": "America/Guayaquil",
   "first_name": "Admin",
   "last_name": "Novax",
@@ -65,6 +82,11 @@ Content-Type: application/json
   "password": "replace-with-a-strong-password"
 }
 ```
+
+El bootstrap está limitado a una base sin organizaciones ni tokens previos. No debe volver
+a ejecutarse en una instalación existente. El nombre y slug son opcionales; se inicializan
+para NOVAX y el slug configurado. Si se configura un external_id, se utiliza esa identidad pública.
+La configuración administrativa permite cambiar nombre, zona horaria y metadata, no slug ni estado activo.
 
 La respuesta muestra el token completo una sola vez. Los demás endpoints usan:
 
@@ -108,11 +130,11 @@ Un recurso básico se expone declarando el modelo y sus reglas:
 const service = new AutoCrudService({
   model: Device,
   writableFields: ["code", "name", "status"],
+  automaticCodePrefix: "DEV",
   filterableFields: ["status", "is_active"],
   searchableFields: ["code", "name"],
   schemas: {
     create: {
-      code: { required: true, type: "string", uppercase: true },
       name: { required: true, type: "string", minLength: 2 },
     },
     update: {
@@ -124,7 +146,11 @@ const service = new AutoCrudService({
 
 Las reglas soportan `required`, `type`, `allowNull`, `minLength`, `maxLength`, `min`, `max`, `oneOf`, `format`, `pattern`, normalización y validadores asíncronos. Los hooks permiten resolver UUID externos, transformar datos y agregar reglas de dominio sin duplicar el CRUD.
 
-## Seguridad
+## Proyectos y tableros
+
+CRUD de proyectos, widgets vinculados a sensores, edición de layout, HTML/CSS aislado y telemetría agrupada. Véase [contrato y uso](docs/project-boards.md) y [evidencia del incremento](docs/increments/2026-10-18-project-boards.md). La migración agrega `projects.read` y `projects.manage` al propietario de sistema existente.
+
+## Seguridad de la plataforma
 
 - Los tokens de API son aleatorios y la base guarda únicamente SHA-256.
 - Cada consulta tenant-aware recibe automáticamente `tenant_id` desde el token.

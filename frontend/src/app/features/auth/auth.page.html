@@ -1,0 +1,93 @@
+<section class="auth-shell">
+  <aside class="auth-context">
+    <span class="eyebrow">NOVAX IoT / ACCESO SEGURO</span>
+    <h2>Un espacio para<br />toda tu infraestructura.</h2>
+    <p>
+      Identidades, dispositivos y mediciones, conectados por una arquitectura
+      común.
+    </p>
+    <div class="security-item">
+      <app-icon name="shield" />
+      <div>
+        <strong>Acceso al entorno NOVAX</strong>
+        <p>
+          Cada integrante accede a las funciones autorizadas para su trabajo.
+        </p>
+      </div>
+    </div>
+    <div class="security-item">
+      <app-icon name="activity" />
+      <div>
+        <strong>Operaciones trazables</strong>
+        <p>Acciones registradas para un trabajo responsable y verificable.</p>
+      </div>
+    </div>
+    <a routerLink="/">Volver al inicio</a>
+  </aside>
+  <div class="card auth-card">
+    <p class="eyebrow">
+      NOVAX / TU ESPACIO DE TRABAJO
+    </p>
+    <h1>{{ headings[mode] }}</h1>
+    <p class="description">
+      @switch (mode) { @case ('login') { Utiliza las credenciales de tu
+      cuenta NOVAX. } @case ('forgot-password') { Te
+      enviaremos un enlace de un solo uso al correo de tu cuenta. } @case
+      ('reset-password') { Al actualizar tu contraseña se cerrarán todas tus
+      sesiones activas. } }
+    </p>
+    @if (error()) {
+    <p class="alert" data-status="CRITICAL" role="alert">{{ error() }}</p>
+    } @if (message()) {
+    <p class="alert" data-status="INFO" role="status">{{ message() }}</p>
+    } @if (ready() && mode === 'forgot-password' &&
+    !capabilities().password_recovery_enabled) {
+    <p class="alert" role="status">
+      El envío de correos aún no está configurado. Contacta al administrador
+      para recuperar tu acceso.
+    </p>
+    }
+    <form appFormFocus [formGroup]="form" (ngSubmit)="submit()" class="stack" [attr.aria-busy]="busy()">
+      <div class="auth-fields">
+        @for (field of fields; track field.key) {
+        <label class="field"
+          >{{ field.label }}<input
+            [type]="field.type"
+            [formControlName]="field.key"
+            [autocomplete]="field.autocomplete"
+            [attr.minlength]="field.min"
+            [attr.maxlength]="field.max"
+            [attr.aria-describedby]="field.key + '-help'"
+            [attr.aria-invalid]="form.controls[field.key].touched && form.controls[field.key].invalid"
+          />
+          <small [id]="field.key + '-help'"
+            >{{ field.help }}@if (form.controls[field.key].touched &&
+            form.controls[field.key].invalid) {
+            <span class="field-error">
+              Revisa este campo obligatorio{{ field.min ? ' (mínimo ' +
+              field.min + ' caracteres)' : '' }}.</span
+            >
+            }</small
+          ></label
+        >
+        }
+      </div>
+      @if (mode === 'login') {
+      <a class="recovery-link" routerLink="/auth/forgot-password"
+        >¿Olvidaste tu contraseña?</a
+      >
+      }<button
+        class="button button--primary"
+        type="submit"
+        [disabled]="busy() || unavailable() || (!ready() && mode !== 'login')"
+      >
+        @if (busy()) { <span class="loader" aria-hidden="true"></span> }{{
+        busy() ? 'Procesando…' : labels[mode] }}
+      </button>
+    </form>
+    <p class="auth-bottom">
+      @if (mode === 'login') { Para obtener acceso, solicita una cuenta al administrador de NOVAX. } @else {
+      <a routerLink="/auth/login">Volver a iniciar sesión</a> }
+    </p>
+  </div>
+</section>

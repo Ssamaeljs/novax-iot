@@ -1,0 +1,462 @@
+<app-monitoring-overview />
+
+<section id="devices" class="section" aria-labelledby="devices-title">
+  <div class="section-title">
+    <div>
+      <h2 id="devices-title">Inventario de dispositivos</h2>
+      <p>Distintos protocolos, una misma experiencia.</p>
+    </div>
+    <button class="button" type="button" (click)="openDialog()">
+      <app-icon name="plus" />Vista de detalle
+    </button>
+  </div>
+  <div class="panel">
+    <div class="table-toolbar">
+      <label class="search-field"
+        ><span class="sr-only">Buscar dispositivos de ejemplo</span
+        ><app-icon name="search" /><input
+          type="search"
+          placeholder="Buscar nombre, código o ubicación…"
+          [ngModel]="search()"
+          (ngModelChange)="filterSearch($event)" /></label
+      ><label class="filter-field"
+        ><span class="sr-only">Filtrar por estado</span
+        ><select
+          [ngModel]="statusFilter()"
+          (ngModelChange)="filterStatus($event)"
+        >
+          <option value="">Todos los estados</option>
+          @for (status of statuses; track status) {
+            <option [value]="status">{{ status }}</option>
+          }
+        </select></label
+      >
+    </div>
+    <div
+      class="table-scroll"
+      tabindex="0"
+      role="region"
+      aria-label="Tabla de dispositivos, desplazable"
+    >
+      <table>
+        <caption class="sr-only">
+          Inventario de dispositivos de ejemplo
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Dispositivo</th>
+            <th scope="col">Protocolo</th>
+            <th scope="col">Ubicación</th>
+            <th scope="col">Estado</th>
+            <th scope="col">Última lectura</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (device of visibleDevices(); track device.code) {
+            <tr>
+              <td>
+                <div class="device-name">
+                  <span class="device-icon"
+                    ><app-icon [name]="device.icon" /></span
+                  ><span
+                    ><strong>{{ device.name }}</strong
+                    ><small class="mono">{{ device.code }}</small></span
+                  >
+                </div>
+              </td>
+              <td>
+                <span class="protocol">{{ device.protocol }}</span>
+              </td>
+              <td>{{ device.location }}</td>
+              <td><app-status-badge [status]="device.status" /></td>
+              <td class="reading mono">{{ device.reading }}</td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="5">
+                <div class="empty-state">
+                  <app-icon name="search" />
+                  <h3>No hay coincidencias</h3>
+                  <p>Prueba otro nombre o cambia el filtro de estado.</p>
+                  <button
+                    type="button"
+                    class="button"
+                    (click)="filterSearch(''); filterStatus('')"
+                  >
+                    Limpiar filtros
+                  </button>
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <div class="table-footer">
+      <span aria-live="polite"
+        >{{ filtered().length }} dispositivos · Página {{ page() }} de
+        {{ pageCount() }}</span
+      >
+      <nav class="pagination" aria-label="Paginación de dispositivos">
+        <button
+          class="button button--icon"
+          type="button"
+          aria-label="Página anterior"
+          [disabled]="page() === 1"
+          (click)="page.set(page() - 1)"
+        >
+          ‹
+        </button>
+        @for (number of [1, 2]; track number) {
+          @if (number <= pageCount()) {
+            <button
+              type="button"
+              class="button button--icon"
+              [attr.aria-current]="page() === number ? 'page' : null"
+              [attr.aria-label]="'Página ' + number"
+              (click)="page.set(number)"
+            >
+              {{ number }}
+            </button>
+          }
+        }
+        <button
+          class="button button--icon"
+          type="button"
+          aria-label="Página siguiente"
+          [disabled]="page() === pageCount()"
+          (click)="page.set(page() + 1)"
+        >
+          ›
+        </button>
+      </nav>
+    </div>
+  </div>
+</section>
+
+<app-device-panels />
+
+<section id="states" class="section" aria-labelledby="states-title">
+  <div class="section-title">
+    <div>
+      <h2 id="states-title">Estados y notificaciones</h2>
+      <p>Cada estado combina color, icono y texto.</p>
+    </div>
+    <button
+      type="button"
+      class="button"
+      (click)="
+        toast.set('Notificación de ejemplo: el dispositivo está disponible.')
+      "
+    >
+      <app-icon name="bell" />Probar notificación
+    </button>
+  </div>
+  <div class="card card-body stack">
+    <div class="cluster">
+      @for (status of statuses; track status) {
+        <app-status-badge [status]="status" />
+      }
+    </div>
+    <div class="alert" data-status="WARNING">
+      <app-icon name="warning" />
+      <div>
+        <strong>Temperatura por encima del umbral</strong>Ejemplo: el sensor del
+        laboratorio reporta 32.8 °C. El umbral configurado es 30 °C.
+      </div>
+    </div>
+    <div class="alert" data-status="INFO">
+      <app-icon name="info" />
+      <div>
+        <strong>Información de mantenimiento</strong>Los colores y superficies
+        se adaptan a la preferencia visual de cada usuario.
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="controls" class="section" aria-labelledby="controls-title">
+  <div class="section-title">
+    <div>
+      <h2 id="controls-title">Configuración y acceso</h2>
+      <p>Controles consistentes para formularios, usuarios y permisos.</p>
+    </div>
+    <details
+      class="dropdown"
+      #actions
+      (keydown.escape)="closeDropdown(actions)"
+    >
+      <summary class="button"><app-icon name="more" />Opciones</summary>
+      <div class="dropdown-panel">
+        <button
+          type="button"
+          class="button button--ghost"
+          (click)="closeDropdown(actions); openDialog()"
+        >
+          Ver detalle de ejemplo</button
+        ><button
+          type="button"
+          class="button button--ghost"
+          (click)="
+            toast.set('Este menú es parte de la vista de componentes.');
+            closeDropdown(actions)
+          "
+        >
+          Mostrar notificación
+        </button>
+      </div>
+    </details>
+  </div>
+  <div class="settings-grid">
+    <article class="card card-body">
+      <div
+        class="tabs"
+        role="tablist"
+        aria-label="Configuración de ejemplo"
+        (keydown)="changeTab($event)"
+      >
+        <button
+          type="button"
+          id="tab-settings"
+          role="tab"
+          aria-controls="settings-panel"
+          [attr.aria-selected]="tab() === 'settings'"
+          [tabIndex]="tab() === 'settings' ? 0 : -1"
+          (click)="tab.set('settings')"
+        >
+          Dispositivo</button
+        ><button
+          type="button"
+          id="tab-permissions"
+          role="tab"
+          aria-controls="permissions-panel"
+          [attr.aria-selected]="tab() === 'permissions'"
+          [tabIndex]="tab() === 'permissions' ? 0 : -1"
+          (click)="tab.set('permissions')"
+        >
+          Usuarios y permisos
+        </button>
+      </div>
+      <div
+        id="settings-panel"
+        role="tabpanel"
+        aria-labelledby="tab-settings"
+        [hidden]="tab() !== 'settings'"
+        tabindex="0"
+      >
+        <form class="form-grid" (submit)="submitPreview($event)">
+          <label class="field"
+            >Nombre del dispositivo<input
+              name="deviceName"
+              required
+              minlength="2"
+              value="Sensor de Secretaría"
+              autocomplete="off"
+            /><small
+              >Nombre visible para el equipo de operaciones.</small
+            ></label
+          ><label class="field"
+            >Protocolo<select name="protocol">
+              <option>MQTT</option>
+              <option>HTTP</option>
+              <option>HTTPS</option>
+              <option>ONVIF</option>
+            </select></label
+          ><label class="field full-width"
+            >Descripción<textarea
+              name="description"
+              placeholder="Ubicación, propósito o notas de instalación"
+            ></textarea></label
+          ><label class="field"
+            >Identificador de muestra<input
+              value="ESP32-SEC-01"
+              disabled /></label
+          ><label class="field"
+            >Umbral de ejemplo<input
+              aria-invalid="true"
+              aria-describedby="threshold-error"
+              value="Fuera de rango"
+              readonly
+            /><span class="field-error" id="threshold-error"
+              >Ejemplo visual: introduce un valor de 0 a 100.</span
+            ></label
+          >
+          <fieldset>
+            <legend>Intervalo de medición</legend>
+            <div class="cluster">
+              <label class="choice"
+                ><input type="radio" name="interval" checked />5 minutos</label
+              ><label class="choice"
+                ><input type="radio" name="interval" />15 minutos</label
+              >
+            </div>
+          </fieldset>
+          <label class="choice"
+            ><input type="checkbox" role="switch" checked />Alertas
+            habilitadas</label
+          >
+          <div class="cluster full-width">
+            <button class="button button--primary" type="submit">
+              Validar formulario</button
+            ><button class="button" type="reset">Restablecer</button
+            ><button class="button" type="button" disabled>
+              Acción no disponible
+            </button>
+          </div>
+        </form>
+      </div>
+      <div
+        id="permissions-panel"
+        role="tabpanel"
+        aria-labelledby="tab-permissions"
+        [hidden]="tab() !== 'permissions'"
+        tabindex="0"
+      >
+        <div class="stack permission-panel">
+          <div class="user-preview">
+            <span class="avatar">OP</span>
+            <div>
+              <h3>Operador de ejemplo</h3>
+              <p class="muted">Rol: IOT_OPERATOR</p>
+            </div>
+          </div>
+          <p class="muted">
+            Vista de controles. Los permisos reales se validan en el servidor.
+          </p>
+          <fieldset class="stack">
+            <legend>Permisos del rol</legend>
+            <label class="choice"
+              ><input type="checkbox" checked />Consultar dispositivos</label
+            ><label class="choice"
+              ><input type="checkbox" checked />Consultar mediciones</label
+            ><label class="choice"
+              ><input type="checkbox" />Administrar sensores</label
+            ><label class="choice"
+              ><input type="checkbox" disabled />Administrar propietarios
+              (restringido)</label
+            >
+          </fieldset>
+          <button
+            class="button button--primary"
+            type="button"
+            (click)="
+              toast.set(
+                'Selección de ejemplo; no se modificaron permisos reales.'
+              )
+            "
+          >
+            Probar selección
+          </button>
+        </div>
+      </div>
+    </article>
+    <div class="stack">
+      <article class="card">
+        <div class="panel-heading">
+          <h2>Auditoría y actividad</h2>
+          <app-icon name="shield" />
+        </div>
+        <div class="card-body">
+          <div class="log-panel">
+            <div>
+              <time>10:42:08</time> · <strong>READ</strong><br />Consulta de
+              sensor · Operador de ejemplo
+            </div>
+            <div>
+              <time>10:40:12</time> · <strong>UPDATE</strong><br />Umbral
+              actualizado · Administrador de ejemplo
+            </div>
+            <div>
+              <time>10:38:04</time> · <strong>LOGIN</strong><br />Inicio de
+              sesión · Datos ilustrativos
+            </div>
+          </div>
+        </div>
+      </article>
+      <article class="card card-body stack">
+        <h2>Estados de carga</h2>
+        <div class="cluster" role="status">
+          <span class="loader" aria-hidden="true"></span
+          ><span class="muted">Ejemplo de sincronización</span>
+        </div>
+        <div class="stack" aria-hidden="true">
+          <div class="skeleton"></div>
+          <div class="skeleton short"></div>
+        </div>
+      </article>
+      <article class="card">
+        <div class="empty-state">
+          <app-icon name="bell" />
+          <h3>Sin eventos adicionales</h3>
+          <p>Los nuevos eventos aparecerán aquí.</p>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<dialog
+  #previewDialog
+  aria-labelledby="dialog-title"
+  aria-describedby="dialog-description"
+>
+  <div class="panel-heading">
+    <h2 id="dialog-title">Detalle del dispositivo</h2>
+    <button
+      type="button"
+      class="button button--icon button--ghost"
+      aria-label="Cerrar detalle"
+      (click)="closeDialog()"
+    >
+      <app-icon name="close" />
+    </button>
+  </div>
+  <div class="dialog-content stack">
+    <app-status-badge status="ONLINE" />
+    <h3>Sensor ambiental · Secretaría</h3>
+    <p id="dialog-description" class="muted">
+      Vista de ejemplo del panel de un dispositivo. El fondo, los bordes y los
+      controles utilizan los mismos tokens del tema activo.
+    </p>
+    <dl class="detail-list">
+      <div>
+        <dt>Identificador</dt>
+        <dd class="mono">ESP32-SEC-01</dd>
+      </div>
+      <div>
+        <dt>Protocolo</dt>
+        <dd>MQTT</dd>
+      </div>
+      <div>
+        <dt>Humedad</dt>
+        <dd>64.5 % HR</dd>
+      </div>
+    </dl>
+  </div>
+  <div class="dialog-actions">
+    <button
+      type="button"
+      class="button button--primary"
+      (click)="closeDialog()"
+    >
+      Entendido
+    </button>
+  </div>
+</dialog>
+<div aria-live="polite" aria-atomic="true">
+  @if (toast()) {
+    <div class="toast">
+      <div class="cluster">
+        <app-icon name="check" /><span>{{ toast() }}</span
+        ><button
+          type="button"
+          class="button button--icon button--ghost"
+          aria-label="Cerrar notificación"
+          (click)="toast.set('')"
+        >
+          <app-icon name="close" />
+        </button>
+      </div>
+    </div>
+  }
+</div>

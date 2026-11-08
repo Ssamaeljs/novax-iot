@@ -1,0 +1,108 @@
+:host {
+  display: block;
+}
+.audit-filters {
+  display: flex;
+  align-items: end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.record-detail {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 0.8rem;
+  font-size: 0.85rem;
+}
+.record-detail dt {
+  color: var(--text-muted);
+}
+.record-detail dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.eyebrow {
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  color: var(--primary);
+  margin-bottom: 0.5rem;
+}
+.section-title > div {
+  max-width: 720px;
+}
+.section-title h1 {
+  margin-bottom: 0.5rem;
+}
+.notice {
+  margin-bottom: 1rem;
+  align-items: center;
+  justify-content: space-between;
+}
+.search-form {
+  display: flex;
+  gap: 0.5rem;
+  max-width: 470px;
+  flex: 1;
+}
+.table-scroll {
+  max-height: 65vh;
+}
+.row-actions {
+  display: flex;
+  gap: 0.2rem;
+  white-space: nowrap;
+}
+.cell-value {
+  display: block;
+  max-width: 300px;
+  overflow-wrap: anywhere;
+}
+.danger-text {
+  color: var(--danger);
+}
+.editor-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.full-field {
+  grid-column: 1 / -1;
+}
+.assignment-list {
+  display: grid;
+  gap: 0.4rem;
+  max-height: 350px;
+  overflow: auto;
+}
+.assignment-list small {
+  display: block;
+  font-size: 0.65rem;
+}
+.log-panel {
+  white-space: pre-wrap;
+  max-height: 60vh;
+  overflow: auto;
+}
+dialog {
+  width: min(660px, calc(100% - 2rem));
+}
+@media (max-width: 600px) {
+  .table-scroll { max-height: none; }
+  .row-actions { flex-wrap: wrap; white-space: normal; gap: .5rem; }
+  .row-actions .button { flex: 1 1 auto; }
+  .cell-value { max-width: 100%; }
+  .audit-filters { width: 100%; }
+  .audit-filters .field { flex: 1 1 120px; }
+  .editor-fields {
+    grid-template-columns: 1fr;
+  }
+  .section-title {
+    align-items: flex-start;
+  }
+  .search-form {
+    max-width: 100%;
+    width: 100%;
+  }
+  .search-form button span {
+    display: none;
+  }
+}

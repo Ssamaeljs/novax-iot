@@ -11,46 +11,53 @@ const {
 const { hashToken } = require("../utils/security/apiToken");
 const AppError = require("../utils/handleError/AppError");
 const handleError = require("../utils/handleError/handleError");
+const { organizationScope } = require("../config/organization");
+const {
+  readSessionCookie,
+  assertWebRequest,
+} = require("../utils/security/webSession");
 
 function credentialIncludes() {
   return [
-    { model: Tenant, as: "tenant", required: true, where: { is_active: true } },
+    { model: Tenant, as: "tenant", required: true, where: organizationScope() },
     {
-    model: Account,
-    as: "account",
-    required: true,
-    where: { is_active: true },
-    include: [
-      {
-        model: User,
-        as: "user",
-        required: true,
-        where: { is_active: true },
-      },
-      {
-        model: Role,
-        as: "roles",
-        required: false,
-        where: { is_active: true },
-        through: { attributes: [] },
-        include: [
-          {
-            model: Permission,
-            as: "permissions",
-            required: false,
-            where: { is_active: true },
-            through: { attributes: [] },
-          },
-        ],
-      },
-    ],
+      model: Account,
+      as: "account",
+      required: true,
+      where: { is_active: true },
+      include: [
+        {
+          model: User,
+          as: "user",
+          required: true,
+          where: { is_active: true },
+        },
+        {
+          model: Role,
+          as: "roles",
+          required: false,
+          where: { is_active: true },
+          through: { attributes: [] },
+          include: [
+            {
+              model: Permission,
+              as: "permissions",
+              required: false,
+              where: { is_active: true },
+              through: { attributes: [] },
+            },
+          ],
+        },
+      ],
     },
   ];
 }
 
 function rolePermissions(account) {
   return new Set(
-    account.roles.flatMap((role) => role.permissions.map((permission) => permission.key)),
+    account.roles.flatMap((role) =>
+      role.permissions.map((permission) => permission.key),
+    ),
   );
 }
 
@@ -62,6 +69,7 @@ function baseIdentity(credential, type) {
     userId: credential.account.user_id,
     userExternalId: credential.account.user.external_id,
     tenantId: credential.tenant_id,
+    roles: new Set(credential.account.roles.map((role) => role.code)),
   };
 }
 
@@ -69,11 +77,16 @@ async function authenticateBearer(req, res, next) {
   try {
     const authorization = req.get("authorization") || "";
     const match = authorization.match(/^Bearer\s+(.+)$/i);
-    if (!match) {
+    const cookieToken = !authorization && readSessionCookie(req);
+    if (!match && !cookieToken) {
       throw new AppError("Token requerido", 401, "AUTHENTICATION_REQUIRED");
     }
 
-    const rawToken = match[1];
+    if (cookieToken && !["GET", "HEAD", "OPTIONS"].includes(req.method))
+      assertWebRequest(req);
+    const rawToken = match ? match[1] : cookieToken;
+    if (cookieToken && !rawToken.startsWith("nvx_session_"))
+      throw new AppError("Sesión inválida", 401, "INVALID_SESSION");
     const tokenHash = hashToken(rawToken);
 
     if (rawToken.startsWith("nvx_session_")) {
@@ -86,7 +99,11 @@ async function authenticateBearer(req, res, next) {
         include: credentialIncludes(),
       });
       if (!session || session.account.tenant_id !== session.tenant_id) {
-        throw new AppError("Sesión inválida o expirada", 401, "INVALID_SESSION");
+        throw new AppError(
+          "Sesión inválida o expirada",
+          401,
+          "INVALID_SESSION",
+        );
       }
 
       req.auth = {
@@ -108,7 +125,10 @@ async function authenticateBearer(req, res, next) {
         token_hash: tokenHash,
         is_active: true,
         revoked_at: null,
-        [Op.or]: [{ expires_at: null }, { expires_at: { [Op.gt]: new Date() } }],
+        [Op.or]: [
+          { expires_at: null },
+          { expires_at: { [Op.gt]: new Date() } },
+        ],
       },
       include: credentialIncludes(),
     });
@@ -119,7 +139,11 @@ async function authenticateBearer(req, res, next) {
     const permissions = rolePermissions(apiToken.account);
     const tokenScopes = Array.isArray(apiToken.scopes) ? apiToken.scopes : [];
     const effectivePermissions = tokenScopes.length
-      ? new Set([...permissions].filter((permission) => tokenScopes.includes(permission)))
+      ? new Set(
+          [...permissions].filter((permission) =>
+            tokenScopes.includes(permission),
+          ),
+        )
       : permissions;
 
     req.auth = {

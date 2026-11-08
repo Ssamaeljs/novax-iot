@@ -1,8 +1,10 @@
 const { Device } = require("../../../config/models");
 const { AutoCrudService } = require("../../../helpers/autoCrud");
+const AppError = require("../../../utils/handleError/AppError");
 
 module.exports = new AutoCrudService({
   model: Device,
+  automaticCodePrefix: "DEV",
   writableFields: [
     "code",
     "name",
@@ -22,14 +24,13 @@ module.exports = new AutoCrudService({
   sortableFields: ["code", "name", "status", "last_seen_at", "created_at"],
   schemas: {
     create: {
-      code: { required: true, type: "string", uppercase: true, minLength: 2, maxLength: 80 },
       name: { required: true, type: "string", minLength: 2, maxLength: 120 },
       device_type: { required: true, type: "string", uppercase: true, minLength: 2, maxLength: 60 },
       protocol: {
         required: true,
         type: "string",
         uppercase: true,
-        oneOf: ["MQTT", "HTTP", "HTTPS", "ONVIF"],
+        oneOf: ["MQTT", "HTTPS"],
       },
       manufacturer: { type: "string", maxLength: 100, allowNull: true },
       model: { type: "string", maxLength: 100, allowNull: true },
@@ -41,7 +42,6 @@ module.exports = new AutoCrudService({
       is_active: { type: "boolean" },
     },
     update: {
-      code: { type: "string", uppercase: true, minLength: 2, maxLength: 80 },
       name: { type: "string", minLength: 2, maxLength: 120 },
       device_type: { type: "string", uppercase: true, minLength: 2, maxLength: 60 },
       protocol: { type: "string", uppercase: true, oneOf: ["MQTT", "HTTP", "HTTPS", "ONVIF"] },
@@ -56,6 +56,9 @@ module.exports = new AutoCrudService({
     },
   },
   hooks: {
+    beforeUpdate(record, payload) {
+      if (["HTTP", "ONVIF"].includes(payload.protocol) && record.protocol !== payload.protocol) throw new AppError("Las nuevas integraciones admiten HTTPS o MQTT", 422, "LEGACY_PROTOCOL_READ_ONLY");
+    },
     transformInput: async (_operation, input) => ({
       ...input,
       ...(input.last_seen_at ? { last_seen_at: new Date(input.last_seen_at) } : {}),
