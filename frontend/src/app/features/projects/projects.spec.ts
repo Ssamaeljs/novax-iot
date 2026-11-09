@@ -1,3 +1,4 @@
+import { Toast } from '../../shared/ui/toast.service';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
@@ -84,7 +85,7 @@ describe('Project board editor', () => {
     const component = fixture.componentInstance; component.toggleEditing(); component.add('THERMOMETER'); fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('#widget-sidebar')).not.toBeNull();
     expect(component.widgets().length).toBe(2); expect(component.widgets()[1].layout.x).toBe(4); expect(component.dirty()).toBeTrue();
-    await component.save(); expect(projects.save).toHaveBeenCalled(); expect(component.dirty()).toBeFalse(); expect(component.notice()).toBe('Tablero guardado.');
+    await component.save(); expect(projects.save).toHaveBeenCalled(); expect(component.dirty()).toBeFalse(); expect(TestBed.inject(Toast).messages()).toContain(jasmine.objectContaining({ icon: 'success', text: 'Tablero guardado.' }));
   });
   it('moves and resizes using keyboard controls and respects a locked position', () => {
     const component = fixture.componentInstance; component.toggleEditing();

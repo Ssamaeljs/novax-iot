@@ -1,3 +1,5 @@
+import { EditorModal } from '../../shared/ui/editor-modal.component';
+import { Toast } from '../../shared/ui/toast.service';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -15,7 +17,7 @@ import { ApiService, errorMessage } from '../../core/api/api.service';
 import { AuthState } from '../../core/auth/auth-state.service';
 import { FormFocusDirective } from '../../shared/ui/form-focus.directive';
 @Component({
-  imports: [ReactiveFormsModule, FormFocusDirective],
+  imports: [EditorModal, ReactiveFormsModule, FormFocusDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `<header class="section-title">
       <div>
@@ -27,12 +29,10 @@ import { FormFocusDirective } from '../../shared/ui/form-focus.directive';
       <p class="alert" data-status="WARNING">
         Estos cambios afectan a todos los integrantes de NOVAX.
       </p>
-      @if (error()) {
-        <p class="alert" data-status="CRITICAL" role="alert">{{ error() }}</p>
-      }
-      @if (message()) {
-        <p class="alert" data-status="SUCCESS" role="status">{{ message() }}</p>
-      }
+      <dl><dt>Organización</dt><dd>{{ state.identity()?.tenant?.name }}</dd><dt>Zona horaria</dt><dd>{{ state.identity()?.tenant?.timezone }}</dd></dl>
+      <button class="button" type="button" [disabled]="!state.has('tenants.manage')" (click)="open()">Editar organización</button>
+      @if (editing()) {
+      <app-editor-modal title="Editar organización" [busy]="busy()" (dismissed)="close()">
       <form appFormFocus class="stack" [formGroup]="form" (ngSubmit)="save()" [attr.aria-busy]="busy()">
         <label class="field"
           >Nombre de la organización<input formControlName="name" /></label
@@ -54,6 +54,8 @@ import { FormFocusDirective } from '../../shared/ui/form-focus.directive';
           {{ busy() ? 'Guardando…' : 'Guardar organización' }}
         </button>
       </form>
+      </app-editor-modal>
+      }
     </section>`,
   styles: `
     .advanced {
@@ -62,11 +64,11 @@ import { FormFocusDirective } from '../../shared/ui/form-focus.directive';
   `,
 })
 export class AdvancedPage {
+  private readonly toast = inject(Toast);
   readonly state = inject(AuthState);
   private readonly api = inject(ApiService);
   readonly busy = signal(false);
-  readonly error = signal('');
-  readonly message = signal('');
+  readonly editing = signal(false);
   readonly form = new FormGroup({
     name: new FormControl(this.state.identity()!.tenant.name, {
       nonNullable: true,
@@ -81,17 +83,25 @@ export class AdvancedPage {
       validators: Validators.required,
     }),
   });
+  open() {
+    const tenant = this.state.identity()?.tenant;
+    if (!tenant || !this.state.has('tenants.manage')) return;
+    this.form.reset({ name: tenant.name, timezone: tenant.timezone });
+    this.editing.set(true);
+  }
+  close() {
+    if (this.busy() || (this.form.dirty && !window.confirm('Hay cambios sin guardar. ¿Quieres descartarlos?'))) return;
+    this.editing.set(false);
+  }
   async save() {
     if (this.busy()) return;
     this.form.markAllAsTouched();
     if (this.form.invalid) return;
-    this.error.set('');
-    this.message.set('');
     const payload = this.form.getRawValue();
     try {
       new Intl.DateTimeFormat('es', { timeZone: payload.timezone });
     } catch {
-      this.error.set('Zona horaria no válida.');
+      this.toast.fire({ icon: 'error', text: 'Zona horaria no válida.' });
       return;
     }
     this.busy.set(true);
@@ -107,9 +117,10 @@ export class AdvancedPage {
           ? { ...identity, tenant: { ...identity.tenant, ...payload } }
           : null,
       );
-      this.message.set('Organización actualizada.');
+      this.editing.set(false);
+      this.toast.fire({ icon: 'success', text: 'Organización actualizada.' });
     } catch (error) {
-      this.error.set(errorMessage(error));
+      this.toast.fire({ icon: 'error', text: errorMessage(error) });
     } finally {
       this.busy.set(false);
     }

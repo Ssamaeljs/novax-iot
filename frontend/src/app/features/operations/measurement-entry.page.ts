@@ -1,3 +1,4 @@
+import { Toast } from '../../shared/ui/toast.service';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -34,12 +35,6 @@ import { FormFocusDirective } from '../../shared/ui/form-focus.directive';
         Útil para pruebas y carga manual. La ingestión automatizada utiliza la
         capa de integración HTTPS o MQTT con credenciales del dispositivo.
       </p>
-      @if (error()) {
-        <p class="alert" data-status="CRITICAL" role="alert">{{ error() }}</p>
-      }
-      @if (message()) {
-        <p class="alert" data-status="SUCCESS" role="status">{{ message() }}</p>
-      }
       <form appFormFocus [formGroup]="form" class="stack" (ngSubmit)="submit()" [attr.aria-busy]="busy()">
         <label class="field"
           >Sensor<select
@@ -122,14 +117,13 @@ import { FormFocusDirective } from '../../shared/ui/form-focus.directive';
   `,
 })
 export class MeasurementEntryPage implements OnInit {
+  private readonly toast = inject(Toast);
   private readonly api = inject(ApiService);
   private readonly route = inject(ActivatedRoute);
   readonly deviceId = this.route.snapshot?.queryParamMap?.get('device') || '';
   readonly state = inject(AuthState);
   readonly sensors = signal<Entity[]>([]);
   readonly busy = signal(false);
-  readonly error = signal('');
-  readonly message = signal('');
   readonly form = new FormGroup({
     sensor_external_id: new FormControl('', {
       nonNullable: true,
@@ -147,19 +141,17 @@ export class MeasurementEntryPage implements OnInit {
   });
   ngOnInit() {
     if (!this.state.has('sensors.read')) {
-      this.error.set(
-        'Necesitas sensors.read para seleccionar un sensor y registrar mediciones desde esta pantalla.',
-      );
+      this.toast.fire({ icon: 'error', text: 'Necesitas sensors.read para seleccionar un sensor y registrar mediciones desde esta pantalla.' });
       return;
     }
     void this.api
       .options('iot/sensors', { is_active: true, ...(this.deviceId ? { device_external_id: this.deviceId } : {}) })
       .then((rows) => {
-        this.sensors.set(rows);
+        this.sensors.set(rows.filter((sensor) => sensor['is_active'] !== false));
         const sensor = this.route.snapshot?.queryParamMap?.get('sensor');
         if (rows.some((row) => row.external_id === sensor)) this.form.controls.sensor_external_id.setValue(sensor!);
       })
-      .catch((error) => this.error.set(errorMessage(error)));
+      .catch((error) => this.toast.fire({ icon: 'error', text: errorMessage(error) }));
   }
   selected() {
     return this.sensors().find(
@@ -177,8 +169,6 @@ export class MeasurementEntryPage implements OnInit {
     if (this.busy()) return;
     this.form.markAllAsTouched();
     if (this.form.invalid || !this.selected()) return;
-    this.error.set('');
-    this.message.set('');
     this.busy.set(true);
     try {
       const payload = this.form.getRawValue();
@@ -201,11 +191,11 @@ export class MeasurementEntryPage implements OnInit {
           observed_at: new Date(payload.observed_at).toISOString(),
         }),
       );
-      this.message.set('Medición registrada correctamente.');
+      this.toast.fire({ icon: 'success', text: 'Medición registrada correctamente.' });
       this.form.controls.value.reset('');
       this.form.controls.observed_at.setValue(this.localNow());
     } catch (error) {
-      this.error.set(errorMessage(error));
+      this.toast.fire({ icon: 'error', text: errorMessage(error) });
     } finally {
       this.busy.set(false);
     }

@@ -47,6 +47,8 @@ El primer build descarga imágenes y paquetes. PostgreSQL inicializa un volumen 
 
 Si un puerto está ocupado, cambia `NOVAX_WEB_PORT` o `NOVAX_MQTT_PORT` en `.env` y vuelve a ejecutar `docker compose up -d --wait`. Cambia también la URL que abres en el navegador. Para una demo en un servidor remoto, mantén los puertos en loopback y usa un túnel SSH autorizado. Por ejemplo, con puertos remotos por defecto, `ssh -L 8080:127.0.0.1:8080 -L 1883:127.0.0.1:1883 usuario@servidor`; luego usa las mismas direcciones locales. No abras el broker de laboratorio en el firewall.
 
+Para conectar equipos físicos en la red privada de laboratorio, asigna la IP privada del anfitrión a `NOVAX_MQTT_LAN_IP` en `.env` y aplica el cambio con `docker compose up -d --no-deps --wait mosquitto`. Los dispositivos usan esa IP y `NOVAX_MQTT_PORT`. Mosquitto conserva la autenticación y los permisos por tópico, y el equipo anfitrión sigue usando `127.0.0.1`.
+
 ### 3 Crear el primer administrador
 
 En una base nueva, ejecuta en una **terminal interactiva**:
@@ -78,6 +80,8 @@ Si usas un cliente MQTT externo, conecta con la cuenta **de emisor del broker**,
 El servicio `mosquitto` construye la imagen `novax-mosquitto:lab` a partir de Eclipse Mosquitto 2.0.22. No admite usuarios anónimos: la cuenta del backend lee telemetría y publica ACK; la del emisor publica telemetría y lee ACK. En el laboratorio la cuenta del emisor puede usar los tópicos de fuentes de prueba; la credencial de cada fuente se valida en la API. No es una política de ACL por dispositivo para producción. El broker de laboratorio no guarda mensajes al reiniciar.
 
 Para probar el adaptador HTTP, registra un equipo con protocolo `HTTPS`, un canal y una fuente HTTPS. El destino local es `http://localhost:8080/v1/api/ingest/https/<UUID_FUENTE>`, con `Authorization: Bearer <CREDENCIAL_DE_FUENTE>` y el sobre JSON **sin** el envoltorio MQTT. Esto prueba recepción, autenticación y persistencia del adaptador, **no acredita TLS**. Para el TFM, documenta el entorno real si presentas HTTPS cifrado o MQTT sobre TLS.
+
+También puedes generar lecturas desde el equipo anfitrión con los [simuladores Python de MQTT y HTTP/HTTPS](examples/iot/README.md). La guía incluye los valores para configurar ambos perfiles y cómo verificar la recepción.
 
 ## Prueba automática de la instalación
 

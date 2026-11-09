@@ -1,8 +1,7 @@
-@if (error()) { <p class="alert" data-status="CRITICAL" role="alert">{{ error() }}</p><button class="button" (click)="load()">Reintentar</button> }
+@if (error()) { <p>No se pudo abrir el dispositivo.</p><button class="button" (click)="load()">Reintentar</button> }
 @if (loading() && !device()) { <p role="status">Cargando dispositivo…</p> }
 @if (device(); as item) {
   <header class="section-title"><div><p class="eyebrow">OPERACIÓN · DISPOSITIVO</p><h1>{{ item['name'] }}</h1><p>Gestiona sus sensores y consulta las últimas lecturas.</p></div><button class="button" (click)="load()" [disabled]="loading() || busy()">{{ loading() ? 'Sincronizando…' : 'Sincronizar' }}</button></header>
-  @if (notice()) { <p class="alert" data-status="SUCCESS" role="status">{{ notice() }}</p> }
   <div class="device-layout">
     <aside class="card card-body device-info" aria-labelledby="device-info-title"><h2 id="device-info-title">Dispositivo</h2><span class="badge" [attr.data-status]="item['status']">{{ enumLabel(item['status']) }}</span>
       <dl>@for (field of ['code', 'protocol', 'device_type', 'manufacturer', 'model', 'serial_number', 'firmware_version']; track field) { <div><dt>{{ labels[field] }}</dt><dd>{{ item[field] || 'No especificado' }}</dd></div> }<div><dt>Última comunicación</dt><dd>{{ date(item['last_seen_at']) }}</dd></div><div><dt>Registro</dt><dd>{{ item['is_active'] ? 'Activo' : 'Desactivado' }}</dd></div></dl>
@@ -17,7 +16,7 @@
           @if (!state.has('measurements.read')) { <p class="muted">Necesitas permiso de lectura de mediciones para ver los últimos valores.</p> }
         </section>
         @if (editor()) {
-          <section class="card card-body" aria-labelledby="sensor-editor-title"><h2 id="sensor-editor-title">{{ selected() ? 'Editar sensor' : 'Añadir sensor' }}</h2>
+          <app-editor-modal [title]="selected() ? 'Editar sensor' : 'Añadir sensor'" [busy]="busy()" (dismissed)="cancel()">
             <p><strong>Dispositivo asociado: {{ item['name'] }}</strong> · {{ item['code'] }}</p>
             <p>La asociación queda fijada por este dispositivo. La clave identifica el canal en el perfil de integración; no es un código de inventario.</p>
             @if (!selected()) {
@@ -30,14 +29,13 @@
               <p class="muted">Para un DHT11, guarda primero temperatura y después humedad. Si conectas varios, utiliza claves distintas. Configura el perfil HTTPS/MQTT con las mismas claves; registrarlos aquí no configura el firmware ni el cableado.</p>
             }
             <p class="muted">Si existe histórico, no se puede cambiar la clave, magnitud, unidad o tipo: crea otro sensor.</p>
-            @if (editorError()) { <p class="alert" data-status="CRITICAL" role="alert">{{ editorError() }}</p> }
             <form appFormFocus [formGroup]="form" (ngSubmit)="save()" [attr.aria-busy]="busy()"><fieldset [disabled]="busy()" class="editor-fields"><legend class="sr-only">Datos del sensor</legend>
               <label class="field">Nombre<input formControlName="name" maxlength="120" /></label><label class="field">Clave del canal<input formControlName="key" maxlength="80" placeholder="humidity" /></label><label class="field">Magnitud<input formControlName="metric" maxlength="100" placeholder="humidity" /></label><label class="field">Unidad<input formControlName="unit" maxlength="30" placeholder="%" /></label><label class="field">Tipo<select formControlName="data_type"><option value="NUMBER">Número</option><option value="TEXT">Texto</option><option value="BOOLEAN">Verdadero / falso</option><option value="JSON">JSON</option></select></label><label class="field">Intervalo de muestreo (s)<input type="number" min="1" step="1" formControlName="sampling_interval_seconds" /></label><label class="field">Mínimo<input type="number" step="any" formControlName="minimum_value" /></label><label class="field">Máximo<input type="number" step="any" formControlName="maximum_value" /></label>
             </fieldset>@if (form.touched && form.invalid) { <p class="field-error" role="alert">Revisa el nombre (2–120 caracteres), clave (1–80), magnitud (2–100), unidad e intervalo positivo.</p> }<div class="cluster"><button class="button button--primary" [disabled]="busy()" type="submit">{{ busy() ? 'Guardando…' : 'Guardar sensor' }}</button><button class="button" [disabled]="busy()" type="button" (click)="cancel()">Cancelar</button></div></form>
-          </section>
+          </app-editor-modal>
         }
-        @if (sensorError()) { <p class="alert" data-status="CRITICAL" role="alert">{{ sensorError() }}</p> }
         @if (loading()) { <p role="status">Actualizando sensores…</p> }
+        @else if (sensorError()) { <p>No se pudieron cargar los sensores.</p> }
         @else if (!sensorError() && !sensors().length) { <section class="card card-body empty-state"><h3>No hay sensores registrados</h3><p>Añade el primer sensor para comenzar a registrar y consultar lecturas.</p></section> }
         @else if (!sensorError()) {
           <div [class.sensor-grid]="view() === 'cards'" [class.table-scroll]="view() === 'table'">
@@ -45,7 +43,7 @@
               @for (sensor of sensors(); track sensor.external_id) { <tr role="row"><td role="cell" data-label="Sensor"><strong>{{ sensor['name'] }}</strong><small class="sensor-meta">{{ sensor['metric'] }} · {{ sensor['key'] }} · {{ enumLabel(sensor['data_type']) }}</small></td><td role="cell" data-label="Estado"><span class="badge" [attr.data-status]="sensor['is_active'] ? 'ONLINE' : 'OFFLINE'">{{ sensor['is_active'] ? 'Habilitado' : 'Desactivado' }}</span></td><td role="cell" data-label="Última medición">@if (state.has('measurements.read')) { <strong class="reading">{{ value(sensor) }}</strong>@if (sensor['latest_measurement']; as reading) { <small class="sensor-meta">{{ date(reading.observed_at) }} · {{ enumLabel(reading.quality) }}</small> } } @else { Sin permiso de lectura }</td><td role="cell" data-label="Acciones"><div class="sensor-actions">
                 @if (state.has('measurements.read')) { <a class="button" routerLink="/app/monitoring" [queryParams]="{sensor: sensor.external_id, device: deviceId}">Reportes</a> }
                 @if (state.has('measurements.write') && sensor['is_active'] && item['is_active']) { <a class="button" routerLink="/app/operations/measurements" [queryParams]="{sensor: sensor.external_id, device: deviceId}">Añadir medición manual</a> }
-                @if (canManage()) { <button class="button button--ghost" [disabled]="busy()" (click)="start(sensor)" [attr.aria-label]="'Editar ' + sensor['name']">Editar</button><button class="button button--ghost" [disabled]="busy()" (click)="toggle(sensor)">{{ sensor['is_active'] ? 'Desactivar' : 'Activar' }}</button> }
+                @if (canManage()) { <button class="button button--ghost" [disabled]="busy()" (click)="start(sensor)" [attr.aria-label]="'Editar ' + sensor['name']">Editar</button><button class="button button--ghost" [disabled]="busy()" (click)="toggle(sensor)">Desactivar</button> }
               </div></td></tr> }
             </tbody></table>
           </div>

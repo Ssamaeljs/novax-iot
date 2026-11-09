@@ -1,3 +1,4 @@
+import { Toast } from '../../shared/ui/toast.service';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -68,12 +69,6 @@ import {
       </button>
       <button class="button" type="button" [disabled]="loading()" (click)="clearFilters()">Limpiar filtros</button>
     </form>
-    @if (sensorError()) {
-      <p class="alert" data-status="WARNING">{{ sensorError() }}</p>
-    }
-    @if (error()) {
-      <p class="alert" data-status="CRITICAL" role="alert">{{ error() }}</p>
-    }
     @if (chart().length) {
       <section class="panel">
         <app-measurement-chart
@@ -224,6 +219,7 @@ import {
   `,
 })
 export class MonitoringPage implements OnInit {
+  private readonly toast = inject(Toast);
   readonly enumLabel = enumLabel;
   private readonly api = inject(ApiService);
   readonly state = inject(AuthState);
@@ -236,7 +232,6 @@ export class MonitoringPage implements OnInit {
   readonly chartLabel = signal('');
   readonly loading = signal(false);
   readonly error = signal('');
-  readonly sensorError = signal('');
   readonly total = signal(0);
   readonly pages = signal(0);
   sensor = '';
@@ -251,13 +246,11 @@ export class MonitoringPage implements OnInit {
     this.sensor = this.route.snapshot?.queryParamMap?.get('sensor') || '';
     if (this.state.has('sensors.read'))
       void this.api
-        .options('iot/sensors', this.deviceId ? { device_external_id: this.deviceId } : {})
-        .then((rows) => this.sensors.set(rows))
-        .catch((error) => this.sensorError.set(errorMessage(error)));
+        .options('iot/sensors', { is_active: true, ...(this.deviceId ? { device_external_id: this.deviceId } : {}) })
+        .then((rows) => this.sensors.set(rows.filter((sensor) => sensor['is_active'] !== false)))
+        .catch((error) => this.toast.fire({ icon: 'error', text: errorMessage(error) }));
     else
-      this.sensorError.set(
-        'Sin permiso para consultar el catálogo de sensores. Puedes consultar el historial completo.',
-      );
+      this.toast.fire({ icon: 'error', text: 'Sin permiso para consultar el catálogo de sensores. Puedes consultar el historial completo.' });
     this.load();
   }
   date(value: string) {
@@ -272,7 +265,7 @@ export class MonitoringPage implements OnInit {
     if (reset) this.page = 1;
     this.error.set('');
     if (this.from && this.to && new Date(this.from) > new Date(this.to)) {
-      this.error.set('La fecha inicial debe ser anterior a la fecha final.');
+      this.toast.report(this.error, 'error', 'La fecha inicial debe ser anterior a la fecha final.');
       return;
     }
     this.request?.unsubscribe();
@@ -322,7 +315,7 @@ export class MonitoringPage implements OnInit {
           this.loading.set(false);
           this.total.set(0);
           this.pages.set(0);
-          this.error.set(errorMessage(error));
+          this.toast.report(this.error, 'error', errorMessage(error));
         },
       });
   }

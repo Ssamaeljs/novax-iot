@@ -1,3 +1,4 @@
+import { Toast } from '../ui/toast.service';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -87,10 +88,7 @@ import { errorMessage } from '../../core/api/api.service';
           <a class="button button--primary" routerLink="/auth/login">Ingresar</a>
         }
       </div>
-    </header>
-    @if (error()) {
-      <p class="alert" data-status="CRITICAL" role="alert">{{ error() }}</p>
-    }`,
+    </header>`,
   styles: `
     .navbar {
       display: flex;
@@ -177,24 +175,24 @@ import { errorMessage } from '../../core/api/api.service';
   `,
 })
 export class NavbarComponent {
+  private readonly toast = inject(Toast);
   readonly workspace = input(false);
   readonly menu = output<void>();
   readonly state = inject(AuthState);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   readonly busy = signal(false);
-  readonly error = signal('');
   closeOnBlur(event: FocusEvent, details: HTMLDetailsElement) {
     if (!details.contains(event.relatedTarget as Node)) details.open = false;
   }
   async logout() {
     this.busy.set(true);
-    this.error.set('');
     try {
       await this.auth.logout();
+      this.toast.fire({ icon: 'success', text: 'Sesión cerrada.' });
       await this.router.navigate(['/auth/login']);
     } catch (error) {
-      this.error.set(errorMessage(error));
+      this.toast.fire({ icon: 'error', text: errorMessage(error) });
     } finally {
       this.busy.set(false);
     }

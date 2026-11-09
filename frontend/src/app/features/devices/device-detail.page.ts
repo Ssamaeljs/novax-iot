@@ -1,3 +1,5 @@
+import { EditorModal } from '../../shared/ui/editor-modal.component';
+import { Toast } from '../../shared/ui/toast.service';
 import { ChangeDetectionStrategy, Component, DestroyRef, HostListener, OnInit, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -10,11 +12,12 @@ import { FormFocusDirective } from '../../shared/ui/form-focus.directive';
 import { sensorPresets } from './sensor-presets';
 
 @Component({
-  imports: [RouterLink, ReactiveFormsModule, FormFocusDirective],
+  imports: [EditorModal, RouterLink, ReactiveFormsModule, FormFocusDirective],
   templateUrl: './device-detail.page.html', styleUrl: './device-detail.page.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DeviceDetailPage implements OnInit {
+  private readonly toast = inject(Toast);
   private readonly api = inject(ApiService);
   readonly state = inject(AuthState);
   private readonly route = inject(ActivatedRoute);
@@ -27,11 +30,9 @@ export class DeviceDetailPage implements OnInit {
   readonly busy = signal(false);
   readonly error = signal('');
   readonly sensorError = signal('');
-  readonly notice = signal('');
   readonly view = signal<'table' | 'cards'>('cards');
   readonly editor = signal(false);
   readonly selected = signal<Entity | null>(null);
-  readonly editorError = signal('');
   readonly total = signal(0);
   readonly pages = signal(0);
   readonly refreshed = signal<Date | null>(null);
@@ -68,11 +69,12 @@ export class DeviceDetailPage implements OnInit {
     try {
       const device = await firstValueFrom(this.api.get(`iot/devices/${this.deviceId}`));
       if (generation !== this.generation) return;
+      if (device.data['is_active'] === false) throw new Error('Dispositivo no disponible.');
       this.device.set(device.data);
       if (this.state.has('sensors.read')) {
         try {
           const result = await firstValueFrom(this.api.list(this.sensorPath(), {
-            page: this.page, page_size: 12,
+            page: this.page, page_size: 12, is_active: true,
             sort_by: 'name', sort_dir: 'ASC',
             ...(this.state.has('measurements.read') ? { include_latest: true } : {}),
           }));
@@ -80,17 +82,17 @@ export class DeviceDetailPage implements OnInit {
           if (!result.data.length && this.page > 1 && result.pagination.total_pages < this.page) {
             this.page = Math.max(1, result.pagination.total_pages); await this.load(); return;
           }
-          this.sensors.set(result.data); this.total.set(result.pagination.total); this.pages.set(result.pagination.total_pages);
+          this.sensors.set(result.data.filter((sensor) => sensor['is_active'] !== false)); this.total.set(result.pagination.total); this.pages.set(result.pagination.total_pages);
           this.refreshed.set(new Date());
-        } catch (error) { if (generation === this.generation) { this.sensors.set([]); this.sensorError.set(errorMessage(error)); } }
+        } catch (error) { if (generation === this.generation) { this.sensors.set([]); this.toast.report(this.sensorError, 'error', errorMessage(error)); } }
       }
-    } catch (error) { if (generation === this.generation) { this.device.set(null); this.error.set(errorMessage(error)); } }
+    } catch (error) { if (generation === this.generation) { this.device.set(null); this.toast.report(this.error, 'error', errorMessage(error)); } }
     finally { if (generation === this.generation) this.loading.set(false); }
   }
   canManage() { return this.state.has('sensors.manage') && !!this.device()?.['is_active']; }
   start(sensor: Entity | null = null) {
     if (!this.canManage() || !this.canLeave()) return;
-    this.selected.set(sensor); this.editorError.set('');
+    this.selected.set(sensor);
     this.preset.set('');
     this.form.reset({ name: sensor?.['name'] || '', key: sensor?.['key'] || '', metric: sensor?.['metric'] || '',
       unit: sensor?.['unit'] || '', data_type: sensor?.['data_type'] || 'NUMBER',
@@ -117,25 +119,25 @@ export class DeviceDetailPage implements OnInit {
     if (this.form.invalid) return;
     const value = this.form.getRawValue();
     if (value.minimum_value != null && value.maximum_value != null && value.minimum_value > value.maximum_value) {
-      this.editorError.set('El mínimo no puede superar al máximo.'); return;
+      this.toast.fire({ icon: 'error', text: 'El mínimo no puede superar al máximo.' }); return;
     }
-    this.busy.set(true); this.editorError.set('');
+    this.busy.set(true);
     const payload = { ...value, name: value.name.trim(), key: value.key.trim().toLowerCase(), metric: value.metric.trim().toLowerCase(), unit: value.unit.trim() || null };
     try {
       const sensor = this.selected();
       await firstValueFrom(sensor ? this.api.patch(this.sensorPath(sensor), payload) : this.api.post(this.sensorPath(), payload));
-      this.form.markAsPristine(); this.editor.set(false); this.notice.set(sensor ? 'Sensor actualizado.' : 'Sensor registrado en este dispositivo.');
+      this.form.markAsPristine(); this.editor.set(false); this.toast.fire({ icon: 'success', text: sensor ? 'Sensor actualizado.' : 'Sensor registrado en este dispositivo.' });
       await this.load();
-    } catch (error) { this.editorError.set(errorMessage(error)); }
+    } catch (error) { this.toast.fire({ icon: 'error', text: errorMessage(error) }); }
     finally { this.busy.set(false); }
   }
   async toggle(sensor: Entity) {
-    if (!this.canManage() || this.busy() || !this.canLeave() || !window.confirm(`${sensor['is_active'] ? 'Desactivar' : 'Activar'} «${sensor['name']}»? El histórico se conserva.`)) return;
-    this.busy.set(true); this.notice.set(''); this.sensorError.set('');
+    if (!this.canManage() || this.busy() || !this.canLeave() || !window.confirm(`Desactivar «${sensor['name']}»? El histórico se conserva.`)) return;
+    this.busy.set(true); this.sensorError.set('');
     try {
-      await firstValueFrom(this.api.patch(this.sensorPath(sensor), { is_active: !sensor['is_active'] }));
-      this.notice.set('Estado del sensor actualizado.'); await this.load();
-    } catch (error) { this.sensorError.set(errorMessage(error)); }
+      await firstValueFrom(this.api.patch(this.sensorPath(sensor), { is_active: false }));
+      this.toast.fire({ icon: 'success', text: 'Estado del sensor actualizado.' }); await this.load();
+    } catch (error) { this.toast.fire({ icon: 'error', text: errorMessage(error) }); }
     finally { this.busy.set(false); }
   }
   changePage(delta: number) { this.page += delta; void this.load(); }

@@ -1,3 +1,4 @@
+import { Toast } from '../../shared/ui/toast.service';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
@@ -36,6 +37,28 @@ describe('Device operational detail', () => {
     expect(fixture.componentInstance.value({ ...sensor, latest_measurement: { value: false } })).toBe('Falso');
     fixture.componentInstance.view.set('table'); fixture.detectChanges(); expect(fixture.nativeElement.querySelector('.operational-table')).not.toBeNull(); fixture.destroy();
   });
+  it('opens the sensor editor as a modal and closes with Escape', async () => {
+    const fixture = await detail();
+    fixture.componentInstance.start(sensor);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const dialog = fixture.nativeElement.querySelector('dialog') as HTMLDialogElement;
+    expect(dialog.open).toBeTrue();
+    dialog.dispatchEvent(new Event('cancel', { cancelable: true }));
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('dialog')).toBeNull();
+    fixture.destroy();
+  });
+
+  it('filters disabled channels and requests active-only pagination', async () => {
+    api.list.and.returnValue(of({ data: [sensor, { ...sensor, external_id: 'inactive', name: 'Canal desactivado', is_active: false }], pagination: { total: 1, total_pages: 1 } }));
+    const fixture = await detail();
+    expect(api.list.calls.mostRecent().args[1]).toEqual(jasmine.objectContaining({ is_active: true }));
+    expect(fixture.componentInstance.sensors()).toEqual([sensor]);
+    expect(fixture.nativeElement.textContent).not.toContain('Canal desactivado');
+    fixture.destroy();
+  });
+
   it('creates a sensor with the device fixed by route and no inventory code', async () => {
     const fixture = await detail(); const component = fixture.componentInstance; component.start();
     component.form.patchValue({ name: 'Temperatura', key: 'temp', metric: 'temperature', unit: '°C' });
@@ -53,7 +76,7 @@ describe('Device operational detail', () => {
     const fixture = await detail(); const component = fixture.componentInstance; component.start(sensor);
     component.form.patchValue({ minimum_value: 10, maximum_value: 0 }); await component.save(); expect(api.patch).not.toHaveBeenCalled();
     component.form.patchValue({ minimum_value: null, maximum_value: null }); api.patch.and.returnValue(throwError(() => new Error('Sensor con histórico')));
-    await component.save(); expect(component.editor()).toBeTrue(); expect(component.editorError()).toBe('Sensor con histórico'); fixture.destroy();
+    await component.save(); expect(component.editor()).toBeTrue(); expect(TestBed.inject(Toast).messages()).toContain(jasmine.objectContaining({ icon: 'error', text: 'Sensor con histórico' })); fixture.destroy();
   });
   it('does not request measurements or offer mutations to a sensor-only reader', async () => {
     TestBed.inject(AuthState).identity.set({ ...testIdentity, permissions: ['devices.read', 'sensors.read'] });

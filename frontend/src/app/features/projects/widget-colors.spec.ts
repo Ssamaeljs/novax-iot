@@ -1,3 +1,4 @@
+import { Toast } from '../../shared/ui/toast.service';
 import { TestBed } from '@angular/core/testing';
 import { matchingRule, ruleAppearance } from './widget-colors';
 import { SensorTelemetry, WidgetColorRule, WidgetDraft } from './project.models';
@@ -49,7 +50,7 @@ describe('Conditional widget colors', () => {
     fixture.componentInstance.apply();
     expect(emit.calls.mostRecent().args[0].settings.color_rules).toEqual([rule()]);
     fixture.componentInstance.colorRules = [rule({ sensor_external_id: 'another' })]; fixture.componentInstance.apply();
-    expect(emit.calls.count()).toBe(1); expect(fixture.componentInstance.error).toContain('condiciones de color'); fixture.destroy();
+    expect(emit.calls.count()).toBe(1); expect(TestBed.inject(Toast).messages()).toContain(jasmine.objectContaining({ icon: 'error', text: jasmine.stringMatching('condiciones de color') })); fixture.destroy();
   });
   it('adds, reorders and removes conditions without mutating the original list', () => {
     const fixture = TestBed.createComponent(WidgetRulesEditorComponent);

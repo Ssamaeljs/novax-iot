@@ -27,6 +27,20 @@ describe('Integration administration', () => {
     expect(fixture.nativeElement.textContent).toContain('Secretaría'); expect(fixture.nativeElement.textContent).toContain('Deshabilitado en servidor');
     expect(fixture.nativeElement.textContent).not.toContain('Suscrito al broker'); fixture.destroy();
   });
+  it('keeps disabled sources and profiles out of the workspace', async () => {
+    api.options.and.callFake(async (path: string) => path.endsWith('profiles')
+      ? [profile, { ...profile, external_id: 'disabled-profile', is_active: false }]
+      : path.endsWith('sources') ? [source, { ...source, external_id: 'disabled-source', is_active: false }] : []);
+    const fixture = TestBed.createComponent(IntegrationsPage);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(api.options).toHaveBeenCalledWith('integrations/profiles', { is_active: true });
+    expect(api.options).toHaveBeenCalledWith('integrations/sources', { is_active: true });
+    expect(fixture.componentInstance.profiles()).toEqual([profile]);
+    expect(fixture.componentInstance.sources()).toEqual([source]);
+    fixture.destroy();
+  });
+
   it('publishes a new version through the dedicated endpoint without overwriting the original profile', async () => {
     const fixture = TestBed.createComponent(IntegrationsPage); fixture.detectChanges(); await fixture.whenStable();
     fixture.componentInstance.startProfile(profile); fixture.detectChanges(); await fixture.whenStable();
