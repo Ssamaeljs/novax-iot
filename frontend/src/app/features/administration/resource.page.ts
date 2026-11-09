@@ -1,3 +1,5 @@
+import { ToastOutlet } from '../../shared/ui/toast-outlet.component';
+import { Toast } from '../../shared/ui/toast.service';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -33,12 +35,13 @@ import {
   resources,
 } from './resource-definitions';
 @Component({
-  imports: [FormsModule, ReactiveFormsModule, JsonPipe, IconComponent, RouterLink, FormFocusDirective],
+  imports: [ToastOutlet, FormsModule, ReactiveFormsModule, JsonPipe, IconComponent, RouterLink, FormFocusDirective],
   templateUrl: './resource.page.html',
   styleUrl: './resource.page.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ResourcePage implements OnInit {
+  private readonly toast = inject(Toast);
   readonly api = inject(ApiService);
   readonly state = inject(AuthState);
   private readonly route = inject(ActivatedRoute);
@@ -80,8 +83,6 @@ export class ResourcePage implements OnInit {
   readonly pages = signal(0);
   readonly loading = signal(false);
   readonly error = signal('');
-  readonly editorError = signal('');
-  readonly notice = signal('');
   readonly saving = signal(false);
   readonly preparing = signal(false);
   readonly mode = signal<
@@ -105,7 +106,6 @@ export class ResourcePage implements OnInit {
         this.auditAction = '';
         this.auditOutcome = '';
         this.page = 1;
-        this.notice.set('');
         this.close(true);
         this.load();
       });
@@ -135,6 +135,7 @@ export class ResourcePage implements OnInit {
       .list(this.definition.endpoint, {
         page: this.page,
         page_size: 20,
+        ...(this.key !== 'audit' ? { is_active: true } : {}),
         ...(!this.definition.noSearch && this.search.trim()
           ? { search: this.search.trim() }
           : {}),
@@ -153,13 +154,13 @@ export class ResourcePage implements OnInit {
             this.load();
             return;
           }
-          this.rows.set(result.data);
+          this.rows.set(result.data.filter((row) => row['is_active'] !== false));
           this.total.set(result.pagination.total);
           this.pages.set(result.pagination.total_pages);
           this.loading.set(false);
         },
         error: (error) => {
-          this.error.set(errorMessage(error));
+          this.toast.report(this.error, 'error', errorMessage(error));
           this.total.set(0);
           this.pages.set(0);
           this.loading.set(false);
@@ -180,7 +181,7 @@ export class ResourcePage implements OnInit {
     if (['status', 'data_type', 'quality', 'outcome', 'action'].includes(key)) return enumLabel(String(value));
     if (Array.isArray(value))
       return (
-        value.map((item) => item.name || item.key || item).join(', ') ||
+        value.filter((item) => item.is_active !== false).map((item) => item.name || item.key || item).join(', ') ||
         'Sin asignar'
       );
     if (key.endsWith('_at'))
@@ -221,7 +222,6 @@ export class ResourcePage implements OnInit {
     const generation = ++this.generation;
     this.mode.set(mode);
     this.selected.set(row);
-    this.editorError.set('');
     this.secret.set('');
     this.choices.set({});
     this.assignment.set([]);
@@ -278,7 +278,7 @@ export class ResourcePage implements OnInit {
       }
     } catch (error) {
       if (generation === this.generation)
-        this.editorError.set(errorMessage(error));
+        this.toast.fire({ icon: 'error', text: errorMessage(error) });
     } finally {
       if (generation === this.generation) this.preparing.set(false);
     }
@@ -313,7 +313,6 @@ export class ResourcePage implements OnInit {
       if (this.form.invalid) return;
     }
     this.saving.set(true);
-    this.editorError.set('');
     try {
       let result: { data: Entity } | undefined;
       if (mode === 'delete' && row)
@@ -347,11 +346,9 @@ export class ResourcePage implements OnInit {
         );
       }
       if (generation !== this.generation) return;
-      this.notice.set(
-        mode === 'delete'
+      this.toast.fire({ icon: 'success', text: mode === 'delete'
           ? 'Registro desactivado o credencial revocada.'
-          : 'Cambios guardados correctamente.',
-      );
+          : 'Cambios guardados correctamente.' });
       if (result?.data['token']) {
         this.secret.set(result.data['token']);
         this.mode.set('secret');
@@ -360,7 +357,7 @@ export class ResourcePage implements OnInit {
       this.load();
     } catch (error) {
       if (generation === this.generation)
-        this.editorError.set(errorMessage(error));
+        this.toast.fire({ icon: 'error', text: errorMessage(error) });
     } finally {
       this.saving.set(false);
     }

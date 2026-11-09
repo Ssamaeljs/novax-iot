@@ -1,3 +1,5 @@
+import { EditorModal } from '../../shared/ui/editor-modal.component';
+import { Toast } from '../../shared/ui/toast.service';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -16,7 +18,7 @@ import { ApiService, errorMessage } from '../../core/api/api.service';
 import { AuthState, Identity } from '../../core/auth/auth-state.service';
 import { FormFocusDirective } from '../../shared/ui/form-focus.directive';
 @Component({
-  imports: [ReactiveFormsModule, FormFocusDirective],
+  imports: [EditorModal, ReactiveFormsModule, FormFocusDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `<header class="section-title">
       <div>
@@ -24,12 +26,6 @@ import { FormFocusDirective } from '../../shared/ui/form-focus.directive';
         <p>Tu identidad y la seguridad de tu acceso.</p>
       </div>
     </header>
-    @if (error()) {
-      <p class="alert" data-status="CRITICAL" role="alert">{{ error() }}</p>
-    }
-    @if (message()) {
-      <p class="alert" data-status="SUCCESS" role="status">{{ message() }}</p>
-    }
     <div class="account-grid">
       <section class="card card-body stack">
         <h2>Información personal</h2>
@@ -38,6 +34,10 @@ import { FormFocusDirective } from '../../shared/ui/form-focus.directive';
             state.identity()?.account?.username
           }}
         </p>
+        <p>{{ state.identity()?.user?.first_name }} {{ state.identity()?.user?.last_name }}</p>
+        <button class="button" type="button" (click)="openProfile()">Editar información</button>
+        @if (editor() === 'profile') {
+        <app-editor-modal title="Editar información personal" [busy]="busy()" (dismissed)="close()">
         <form appFormFocus [formGroup]="profile" class="stack" (ngSubmit)="saveProfile()" [attr.aria-busy]="busy()">
           <label class="field"
             >Nombres<input
@@ -61,6 +61,8 @@ import { FormFocusDirective } from '../../shared/ui/form-focus.directive';
             Guardar información
           </button>
         </form>
+        </app-editor-modal>
+        }
         <small
           >El documento, correo y usuario son administrados por tu
           organización.</small
@@ -71,6 +73,9 @@ import { FormFocusDirective } from '../../shared/ui/form-focus.directive';
         <p class="muted">
           Esta acción cerrará todas tus sesiones. Deberás volver a ingresar.
         </p>
+        <button class="button" type="button" (click)="editor.set('password')">Cambiar contraseña</button>
+        @if (editor() === 'password') {
+        <app-editor-modal title="Cambiar contraseña" [busy]="busy()" (dismissed)="close()">
         <form appFormFocus
           [formGroup]="password"
           class="stack"
@@ -103,6 +108,8 @@ import { FormFocusDirective } from '../../shared/ui/form-focus.directive';
             Actualizar contraseña
           </button>
         </form>
+        </app-editor-modal>
+        }
       </section>
     </div>`,
   styles: `
@@ -115,9 +122,6 @@ import { FormFocusDirective } from '../../shared/ui/form-focus.directive';
     .muted {
       font-size: 0.82rem;
     }
-    .alert {
-      margin-bottom: 1rem;
-    }
     @media (max-width: 750px) {
       .account-grid {
         grid-template-columns: 1fr;
@@ -126,12 +130,12 @@ import { FormFocusDirective } from '../../shared/ui/form-focus.directive';
   `,
 })
 export class AccountPage {
+  private readonly toast = inject(Toast);
   readonly state = inject(AuthState);
   private readonly api = inject(ApiService);
   private readonly router = inject(Router);
   readonly busy = signal(false);
-  readonly error = signal('');
-  readonly message = signal('');
+  readonly editor = signal<'profile' | 'password' | null>(null);
   readonly profile = new FormGroup({
     first_name: new FormControl(this.state.identity()!.user.first_name, {
       nonNullable: true,
@@ -164,6 +168,19 @@ export class AccountPage {
       validators: Validators.required,
     }),
   });
+  openProfile() {
+    const user = this.state.identity()?.user;
+    if (!user) return;
+    this.profile.reset({ first_name: user.first_name, last_name: user.last_name });
+    this.editor.set('profile');
+  }
+  close() {
+    if (this.busy()) return;
+    const form = this.editor() === 'profile' ? this.profile : this.password;
+    if (form.dirty && !window.confirm('Hay cambios sin guardar. ¿Quieres descartarlos?')) return;
+    this.password.reset();
+    this.editor.set(null);
+  }
   async saveProfile() {
     this.profile.markAllAsTouched();
     if (this.profile.invalid || this.busy()) return;
@@ -172,7 +189,8 @@ export class AccountPage {
         this.api.patch<Identity>('auth/me', this.profile.getRawValue()),
       );
       this.state.identity.set(data);
-      this.message.set('Información actualizada.');
+      this.editor.set(null);
+      this.toast.fire({ icon: 'success', text: 'Información actualizada.' });
     });
   }
   async changePassword() {
@@ -180,7 +198,7 @@ export class AccountPage {
     if (this.password.invalid || this.busy()) return;
     const payload = this.password.getRawValue();
     if (payload.password !== payload.confirmation) {
-      this.error.set('Las contraseñas no coinciden.');
+      this.toast.fire({ icon: 'error', text: 'Las contraseñas no coinciden.' });
       return;
     }
     await this.run(async () => {
@@ -191,18 +209,18 @@ export class AccountPage {
         }),
       );
       this.password.reset();
+      this.editor.set(null);
+      this.toast.fire({ icon: 'success', text: 'Contraseña actualizada. Ingresa nuevamente.' });
       this.state.identity.set(null);
       await this.router.navigate(['/auth/login']);
     });
   }
   private async run(action: () => Promise<void>) {
     this.busy.set(true);
-    this.error.set('');
-    this.message.set('');
     try {
       await action();
     } catch (error) {
-      this.error.set(errorMessage(error));
+      this.toast.fire({ icon: 'error', text: errorMessage(error) });
     } finally {
       this.busy.set(false);
     }

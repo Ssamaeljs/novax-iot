@@ -13,17 +13,6 @@
   </button>
   }
 </header>
-@if (notice()) {
-<p class="alert notice" data-status="SUCCESS" role="status">
-  {{ notice() }}<button
-    class="button button--ghost button--icon"
-    aria-label="Cerrar notificación"
-    (click)="notice.set('')"
-  >
-    <app-icon name="close" />
-  </button>
-</p>
-}
 <section class="panel">
   <div class="panel-heading">
     @if (!definition.noSearch) {
@@ -73,7 +62,7 @@
   </div>
   } @else if (error()) {
   <div class="empty-state">
-    <p class="alert" data-status="CRITICAL" role="alert">{{ error() }}</p>
+    <p>No se pudo cargar el listado.</p>
     <button class="button" (click)="load()">Reintentar</button>
   </div>
   } @else if (!rows().length) {
@@ -214,11 +203,7 @@
           <app-icon name="close" />
         </button>
       </div>
-      @if (editorError()) {
-      <p class="alert" data-status="CRITICAL" role="alert">
-        {{ editorError() }}
-      </p>
-      } @if (preparing()) {
+      @if (preparing()) {
       <p role="status">Cargando opciones…</p>
       } @switch (mode()) { @case ('detail') { @if (selected(); as record) {
       <dl class="record-detail">
@@ -363,4 +348,5 @@
       }
     </div>
   </form>
+  <app-toasts />
 </dialog>

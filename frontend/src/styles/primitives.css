@@ -608,3 +608,12 @@ dialog::backdrop {
   .operational-table td > * { min-width: 0; }
   .operational-table td .badge { justify-self: start; white-space: normal; }
 }
+/* Show notifications in the active native dialog's top layer. */
+body:has(dialog[open]) app-root > app-toasts { display: none; }
+
+dialog.editor-modal {
+  width: min(720px, calc(100% - 1.5rem));
+  max-height: calc(100dvh - 1.5rem);
+}
+
+dialog.editor-modal .section-title { margin: 0; }

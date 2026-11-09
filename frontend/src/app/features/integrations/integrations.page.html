@@ -6,8 +6,6 @@
 </div>
 <button class="button" [disabled]="loading() || busy()" (click)="load()">Actualizar</button>
 </header>
-@if (error()) { <p class="alert" data-status="CRITICAL" role="alert">{{ error() }}</p> }
-@if (notice()) { <p class="alert" data-status="SUCCESS" role="status">{{ notice() }}</p> }
 <div class="panel card-body cluster">
 <strong>Receptor MQTT:</strong>
 <span class="badge" [attr.data-status]="mqtt()?.['subscription_ready'] ? 'SUCCESS' : 'WARNING'">{{ mqtt()?.['subscription_ready'] ? 'Suscrito al broker' : mqtt()?.['enabled'] ? 'Sin suscripción activa' : 'Deshabilitado en servidor' }}</span>
@@ -34,8 +32,8 @@
 <p>Una fuente vincula un dispositivo, un perfil publicado y una credencial propia.</p>
 </div>@if (canManage()) { <button class="button button--primary" [disabled]="busy()" (click)="startSource()">Nueva fuente</button> }</header>
   @if (editingSource()) {
-    <form #sourceForm="ngForm" class="panel card-body stack" (ngSubmit)="saveSource()" [attr.aria-busy]="busy()">
-      <h2>{{ sourceToEdit() ? 'Editar fuente' : 'Crear fuente' }}</h2>
+    <app-editor-modal [title]="sourceToEdit() ? 'Editar fuente' : 'Crear fuente'" [busy]="busy()" (dismissed)="discardEditors()">
+    <form #sourceForm="ngForm" class="stack" (ngSubmit)="saveSource()" [attr.aria-busy]="busy()">
       <label class="field">Nombre *<input name="name" [(ngModel)]="sourceName" required minlength="2" maxlength="120" />
 </label>
       @if (!sourceToEdit()) {
@@ -59,6 +57,7 @@
 <button type="button" class="button" [disabled]="busy()" (click)="discardEditors()">Cancelar</button>
 </div>
     </form>
+    </app-editor-modal>
   }
   @if (!loading() && !sources().length) { <p class="empty-state">No hay fuentes. Publica un modelo de datos, registra sus sensores y vincula un dispositivo.</p> }
   @if (sources().length) {
@@ -82,7 +81,8 @@
 </div>
 </td>
 <td role="cell" data-label="Dispositivo / modelo">
-<div>{{ source['device']?.name }}<br />{{ source['profile']?.name }} · v{{ source['profile']?.version }}</div>
+<div>@if (source['device']?.is_active !== false) { {{ source['device']?.name }} }
+@if (source['profile']?.is_active !== false && source['profile']) { <br />{{ source['profile'].name }} · v{{ source['profile'].version }} }</div>
 </td>
 <td role="cell" data-label="Comunicación">
 <div>
@@ -97,7 +97,7 @@
 <td role="cell" data-label="Acciones">
 <div class="cluster">@if (canManage()) { <button class="button" [disabled]="busy()" (click)="startSource(source)">Editar</button>
 <button class="button" [disabled]="busy()" (click)="rotate(source)">Rotar credencial</button>
-<button class="button" [disabled]="busy()" (click)="toggle('sources',source)">{{ source['is_active'] ? 'Desactivar' : 'Reactivar' }}</button> }</div>
+<button class="button" [disabled]="busy()" (click)="toggle('sources',source)">Desactivar</button> }</div>
 </td>
 </tr> }
     </tbody>
@@ -111,7 +111,7 @@
 <h2>Modelos de datos versionados</h2>
 <p>Configura campos y conversiones, no tablas SQL ni código ejecutable.</p>
 </div>@if (canManage()) { <button class="button button--primary" [disabled]="busy()" (click)="startProfile()">Nuevo perfil</button> }</header>
-  @if (editingProfile()) { <app-profile-editor [base]="baseProfile()" [busy]="busy()" [attr.inert]="busy() ? '' : null" (published)="publish($event)" (cancelled)="discardEditors()" /> }
+  @if (editingProfile()) { <app-editor-modal [title]="baseProfile() ? 'Publicar nueva versión' : 'Crear perfil'" [busy]="busy()" (dismissed)="discardEditors()"><app-profile-editor [base]="baseProfile()" [busy]="busy()" [attr.inert]="busy() ? '' : null" (published)="publish($event)" (cancelled)="discardEditors()" /></app-editor-modal> }
   @for (profile of profiles(); track profile.external_id) {
     <article class="panel card-body stack">
 <div class="cluster">
@@ -124,7 +124,7 @@
 <strong>{{ field.path }}</strong> → {{ field.sensor_key }} · {{ field.metric }} · {{ field.unit || 'sin unidad' }} · {{ field.data_type }}@if (field.data_type === 'NUMBER') { <small> × {{ field.scale }} + {{ field.offset }}</small> }</li> }</ul>
       @if (canManage()) { <div class="cluster">
 <button class="button" [disabled]="busy()" (click)="startProfile(profile)">Nueva versión</button>
-<button class="button" [disabled]="busy()" (click)="toggle('profiles',profile)">{{ profile.is_active ? 'Desactivar versión' : 'Reactivar versión' }}</button>
+<button class="button" [disabled]="busy()" (click)="toggle('profiles',profile)">Desactivar versión</button>
 </div> }
     </article>
   } @empty { @if (!loading()) { <p class="empty-state">Aún no hay perfiles. Define el primer formato de dispositivo.</p> } }

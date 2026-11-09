@@ -1,3 +1,4 @@
+import { Toast } from '../../shared/ui/toast.service';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -39,14 +40,13 @@ interface AuthField {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AuthPage implements OnInit {
+  private readonly toast = inject(Toast);
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
   readonly busy = signal(false);
-  readonly error = signal('');
-  readonly message = signal('');
   readonly ready = signal(false);
   readonly capabilities = signal({
     registration_enabled: false,
@@ -86,14 +86,12 @@ export class AuthPage implements OnInit {
           this.ready.set(true);
         },
         error: (error) => {
-          this.error.set(errorMessage(error));
+          this.toast.fire({ icon: 'error', text: errorMessage(error) });
           this.ready.set(true);
         },
       });
   }
   private configure() {
-    this.error.set('');
-    this.message.set('');
     this.token = '';
     this.returnUrl = safeReturnUrl(
       this.route.snapshot.queryParamMap.get('returnUrl'),
@@ -130,11 +128,9 @@ export class AuthPage implements OnInit {
         secret,
       ];
       if (this.route.snapshot.queryParamMap.has('expired'))
-        this.message.set('Tu sesión ha expirado. Ingresa nuevamente.');
+        this.toast.fire({ icon: 'info', text: 'Tu sesión ha expirado. Ingresa nuevamente.' });
       if (this.route.snapshot.queryParamMap.has('unavailable'))
-        this.error.set(
-          'No pudimos verificar la sesión. Comprueba que el backend esté disponible.',
-        );
+        this.toast.fire({ icon: 'error', text: 'No pudimos verificar la sesión. Comprueba que el backend esté disponible.' });
     } else if (this.mode === 'forgot-password') this.fields = [email];
     else {
       this.fields = [secret];
@@ -147,9 +143,7 @@ export class AuthPage implements OnInit {
         replaceUrl: true,
       });
       if (!this.token)
-        this.error.set(
-          'Abre el enlace del correo para restablecer tu contraseña.',
-        );
+        this.toast.fire({ icon: 'error', text: 'Abre el enlace del correo para restablecer tu contraseña.' });
     }
     if (this.mode === 'reset-password')
       this.fields.push({
@@ -190,7 +184,7 @@ export class AuthPage implements OnInit {
       values['confirmation'] !== undefined &&
       values['confirmation'] !== values['password']
     ) {
-      this.error.set('Las contraseñas no coinciden.');
+      this.toast.fire({ icon: 'error', text: 'Las contraseñas no coinciden.' });
       return;
     }
     if (
@@ -198,16 +192,15 @@ export class AuthPage implements OnInit {
       values['password'] &&
       new TextEncoder().encode(values['password']).length > 72
     ) {
-      this.error.set('La contraseña supera el máximo de 72 bytes UTF-8.');
+      this.toast.fire({ icon: 'error', text: 'La contraseña supera el máximo de 72 bytes UTF-8.' });
       return;
     }
     delete values['confirmation'];
     this.busy.set(true);
-    this.error.set('');
-    this.message.set('');
     try {
       if (this.mode === 'login') {
         await this.auth.login(values);
+        this.toast.fire({ icon: 'success', text: 'Sesión iniciada.' });
         await this.router.navigateByUrl(this.returnUrl);
       } else {
         const result = await firstValueFrom(
@@ -218,12 +211,12 @@ export class AuthPage implements OnInit {
               : values,
           ),
         );
-        this.message.set(result.data.message || 'Solicitud completada.');
+        this.toast.fire({ icon: 'success', text: result.data.message || 'Solicitud completada.' });
         this.form.reset();
         if (this.mode === 'reset-password') this.token = '';
       }
     } catch (error) {
-      this.error.set(errorMessage(error));
+      this.toast.fire({ icon: 'error', text: errorMessage(error) });
     } finally {
       this.busy.set(false);
     }

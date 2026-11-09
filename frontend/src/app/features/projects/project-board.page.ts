@@ -1,3 +1,5 @@
+import { EditorModal } from '../../shared/ui/editor-modal.component';
+import { Toast } from '../../shared/ui/toast.service';
 import { DOCUMENT } from '@angular/common';
 import { afterNextRender, ChangeDetectionStrategy, Component, computed, DestroyRef, ElementRef, HostListener, inject, Injector, NgZone, OnInit, signal, viewChild } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -13,10 +15,11 @@ import { WidgetEditorComponent } from './widget-editor.component';
 
 interface Interaction { key: string; kind: 'move' | 'resize'; origin: WidgetLayout; x: number; y: number; step: number; dirty: boolean; }
 @Component({
-  imports: [FormsModule, RouterLink, WidgetViewComponent, WidgetEditorComponent],
+  imports: [EditorModal, FormsModule, RouterLink, WidgetViewComponent, WidgetEditorComponent],
   templateUrl: './project-board.page.html', styleUrl: './project-board.page.css', changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ProjectBoardPage implements OnInit {
+  private readonly toast = inject(Toast);
   readonly state = inject(AuthState);
   private readonly api = inject(ApiService);
   private readonly projects = inject(ProjectApi);
@@ -35,7 +38,7 @@ export class ProjectBoardPage implements OnInit {
   readonly telemetry = signal<SensorTelemetry[]>([]);
   readonly loading = signal(true); readonly saving = signal(false); readonly refreshing = signal(false);
   readonly dirty = signal(false); readonly editing = signal(false); readonly sidebar = signal(false);
-  readonly error = signal(''); readonly dataError = signal(''); readonly notice = signal(''); readonly optionsError = signal('');
+  readonly error = signal('');
   readonly selectedKey = signal(''); readonly updated = signal('');
   readonly selected = computed(() => this.widgets().find((widget) => widget.key === this.selectedKey()) || null);
   readonly canEdit = computed(() => this.state.has('projects.manage') && this.state.has('sensors.read'));
@@ -50,7 +53,7 @@ export class ProjectBoardPage implements OnInit {
   constructor() { this.destroyRef.onDestroy(() => { this.destroyed = true; this.generation++; this.telemetryGeneration++; }); }
   ngOnInit() {
     this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => { this.id = params.get('external_id') || ''; void this.load(); });
-    if (this.canEdit()) void this.api.options('iot/sensors', { is_active: true }).then((rows) => { if (!this.destroyed) this.sensors.set(rows as unknown as ProjectSensor[]); }).catch((error) => { if (!this.destroyed) this.optionsError.set(errorMessage(error)); });
+    if (this.canEdit()) void this.api.options('iot/sensors', { is_active: true }).then((rows) => { if (!this.destroyed) this.sensors.set(rows as unknown as ProjectSensor[]); }).catch((error) => { if (!this.destroyed) this.toast.fire({ icon: 'error', text: errorMessage(error) }); });
     const browser = this.document.defaultView;
     if (browser) {
       const timer = this.zone.runOutsideAngular(() => browser.setInterval(() => { if (this.state.has('measurements.read')) this.zone.run(() => void this.refresh()); }, 30000));
@@ -70,18 +73,18 @@ export class ProjectBoardPage implements OnInit {
       const board = await this.projects.board(this.id);
       if (this.destroyed || generation !== this.generation) return;
       this.receive(board); void this.refresh(true);
-    } catch (error) { if (generation === this.generation) this.error.set(errorMessage(error)); }
+    } catch (error) { if (generation === this.generation) this.toast.report(this.error, 'error', errorMessage(error)); }
     finally { if (generation === this.generation) this.loading.set(false); }
   }
   async refresh(force = false) {
     if (!this.project() || !this.state.has('measurements.read') || (this.refreshing() && !force)) return;
     const generation = ++this.telemetryGeneration;
-    this.refreshing.set(true); this.dataError.set('');
+    this.refreshing.set(true);
     try {
       const data = await this.projects.telemetry(this.id, this.range);
       if (this.destroyed || generation !== this.telemetryGeneration) return;
-      this.telemetry.set(data.series); this.updated.set(new Date().toLocaleTimeString('es'));
-    } catch (error) { if (generation === this.telemetryGeneration) this.dataError.set(errorMessage(error)); }
+      this.telemetry.set(data.series.filter(({ sensor }) => sensor.is_active !== false)); this.updated.set(new Date().toLocaleTimeString('es'));
+    } catch (error) { if (generation === this.telemetryGeneration) this.toast.fire({ icon: 'error', text: errorMessage(error) }); }
     finally { if (generation === this.telemetryGeneration) this.refreshing.set(false); }
   }
   changeRange() { this.telemetry.set([]); void this.refresh(true); }
@@ -97,30 +100,32 @@ export class ProjectBoardPage implements OnInit {
   }
   toggleEditing() {
     if (!this.canEdit()) return;
-    if (this.editing() && this.dirty()) { this.error.set('Guarda o descarta tus cambios antes de finalizar la edición.'); return; }
+    if (this.editing() && this.dirty()) { this.toast.report(this.error, 'error', 'Guarda o descarta tus cambios antes de finalizar la edición.'); return; }
     this.editing.update((value) => !value); this.sidebar.set(this.editing()); this.error.set('');
     if (this.editing()) this.revealPanel();
   }
   add(type: WidgetType) {
     if (!this.editing() || !this.canEdit() || this.saving()) return;
-    if (this.widgets().length >= 30) { this.error.set('El tablero admite hasta 30 widgets.'); return; }
+    if (this.widgets().length >= 30) { this.toast.report(this.error, 'error', 'El tablero admite hasta 30 widgets.'); return; }
     const sensor = this.sensors().find((sensor) => sensor.is_active && (type === 'HTML' || sensor.data_type === 'NUMBER'));
-    if (!sensor) { this.error.set('Primero registra un sensor compatible o revisa el catálogo de sensores.'); return; }
+    if (!sensor) { this.toast.report(this.error, 'error', 'Primero registra un sensor compatible o revisa el catálogo de sensores.'); return; }
     const layout = freePosition(this.widgets(), type === 'TIMELINE' ? 8 : 4, 5);
-    if (!layout) { this.error.set('No queda espacio disponible en el tablero.'); return; }
+    if (!layout) { this.toast.report(this.error, 'error', 'No queda espacio disponible en el tablero.'); return; }
     const widget: WidgetDraft = { key: crypto.randomUUID(), title: this.catalog.find((item) => item.type === type)!.title, type, layout, sensor_external_ids: [sensor.external_id], sensors: [sensor],
       settings: type === 'HTML' ? { html: '<div class="reading"><h3>{{name}}</h3><strong>{{value}} {{unit}}</strong><p>{{observed_at}}</p></div>', css: '.reading{text-align:center;padding:1rem}.reading strong{font-size:2rem;color:var(--primary)}.reading p{color:var(--text-muted)}' } : type === 'TIMELINE' ? {} : { min: 0, max: 100 },
     };
-    this.widgets.update((items) => [...items, widget]); this.selectedKey.set(widget.key); this.revealPanel(); this.changed();
+    this.widgets.update((items) => [...items, widget]); this.selectedKey.set(widget.key); this.changed();
   }
   apply(widget: WidgetDraft) {
     if (!this.editing() || !this.canEdit() || this.saving()) return;
     const current = this.widgets().find((item) => item.key === widget.key);
-    if (!current || !validLayout(widget.layout, this.widgets(), widget.key)) { this.error.set('Revisa la posición, el tamaño y los espacios ocupados.'); return; }
-    if (current.layout.locked && ['x', 'y', 'width', 'height'].some((key) => current.layout[key as keyof WidgetLayout] !== widget.layout[key as keyof WidgetLayout])) { this.error.set('Desbloquea el widget antes de cambiar su posición o tamaño.'); return; }
-    this.widgets.update((items) => items.map((item) => item.key === widget.key ? widget : item)); this.changed();
+    if (!current || !validLayout(widget.layout, this.widgets(), widget.key)) { this.toast.report(this.error, 'error', 'Revisa la posición, el tamaño y los espacios ocupados.'); return; }
+    if (current.layout.locked && ['x', 'y', 'width', 'height'].some((key) => current.layout[key as keyof WidgetLayout] !== widget.layout[key as keyof WidgetLayout])) { this.toast.report(this.error, 'error', 'Desbloquea el widget antes de cambiar su posición o tamaño.'); return; }
+    this.widgets.update((items) => items.map((item) => item.key === widget.key ? widget : item));
+    this.selectedKey.set(''); this.changed();
+    this.toast.fire({ icon: 'info', text: 'Cambios aplicados al widget. Guarda el tablero para conservarlos.' });
   }
-  select(widget: WidgetDraft) { this.selectedKey.set(widget.key); this.revealPanel(); }
+  select(widget: WidgetDraft) { this.selectedKey.set(widget.key); }
   lock(widget: WidgetDraft) {
     if (!this.editing() || !this.canEdit() || this.saving()) return;
     this.widgets.update((items) => items.map((item) => item.key === widget.key ? { ...item, layout: { ...item.layout, locked: !item.layout.locked } } : item)); this.changed();
@@ -131,7 +136,7 @@ export class ProjectBoardPage implements OnInit {
     if (this.selectedKey() === widget.key) this.selectedKey.set('');
     this.changed();
   }
-  private changed() { this.dirty.set(true); this.error.set(''); this.notice.set(''); }
+  private changed() { this.dirty.set(true); this.error.set(''); }
   async save() {
     if (!this.canEdit() || this.saving() || !this.dirty()) return;
     const generation = this.generation;
@@ -139,9 +144,9 @@ export class ProjectBoardPage implements OnInit {
     try {
       const board = await this.projects.save(this.id, this.version, this.widgets());
       if (this.destroyed || generation !== this.generation) return;
-      this.receive(board); this.notice.set('Tablero guardado.'); void this.refresh(true);
+      this.receive(board); this.toast.fire({ icon: 'success', text: 'Tablero guardado.' }); void this.refresh(true);
     }
-    catch (error) { if (generation === this.generation) this.error.set(errorMessage(error)); }
+    catch (error) { if (generation === this.generation) this.toast.report(this.error, 'error', errorMessage(error)); }
     finally { if (generation === this.generation) this.saving.set(false); }
   }
   startInteraction(event: PointerEvent, widget: WidgetDraft, kind: 'move' | 'resize') {

@@ -16,8 +16,7 @@
     <button class="button" [disabled]="loading()" [attr.aria-expanded]="sidebar()" aria-controls="widget-sidebar" (click)="togglePanel()">{{ sidebar() ? 'Cerrar panel' : 'Widgets' }}</button>
   </div>
 </header>
-@if (error()) { <div class="alert board-alert" data-status="CRITICAL" role="alert">{{ error() }} <button class="button" [disabled]="saving()" (click)="load()">Recargar tablero</button></div> }
-@if (notice()) { <p class="alert board-alert" data-status="SUCCESS" role="status">{{ notice() }}</p> }
+@if (error()) { <div class="board-alert"><button class="button" [disabled]="saving()" (click)="load()">Recargar tablero</button></div> }
 @if (loading()) { <p class="empty-state" role="status">Cargando tablero…</p> }
 @else if (project()) {
   <div class="panel toolbar">
@@ -26,7 +25,6 @@
     <p>Los indicadores muestran la última lectura. Las líneas temporales muestran hasta 200 muestras por sensor del periodo, sin agregación.</p>
   </div>
   @if (!state.has('measurements.read')) { <p class="alert board-alert" data-status="WARNING">Necesitas permiso para consultar mediciones y visualizar los datos de los sensores.</p> }
-  @if (dataError()) { <p class="alert board-alert" data-status="WARNING" role="alert">No se pudieron actualizar los datos: {{ dataError() }}</p> }
   <div class="board-workspace" [class.with-sidebar]="sidebar()">
     <section class="canvas-container" aria-label="Tablero de sensores">
       @if (!widgets().length) {
@@ -63,10 +61,8 @@
         <div class="sidebar-heading"><h2>Widgets</h2><button class="mini-button" aria-label="Cerrar panel de widgets" (click)="sidebar.set(false)">×</button></div>
         @if (editing() && canEdit()) {
           <p class="sidebar-description">Añade un widget y configura sus sensores. Arrastra para mover, usa la esquina para redimensionar o introduce las coordenadas.</p>
-          @if (optionsError()) { <p class="field-error" role="alert">{{ optionsError() }}</p> }
           <div class="widget-catalog">@for (item of catalog; track item.type) { <button class="catalog-item" [disabled]="saving()" (click)="add(item.type)"><strong>+ {{ item.title }}</strong><small>{{ item.description }}</small></button> }</div>
           @if (!sensors().length) { <p class="sidebar-description">No hay sensores disponibles para configurar. <a routerLink="/app/operations/sensors">Consultar sensores</a></p> }
-          @if (selected(); as widget) { <app-widget-editor [widget]="widget" [sensors]="sensors()" [attr.inert]="saving() ? '' : null" (applied)="apply($event)" /> }
           @if (dirty()) { <button class="button button--primary" [disabled]="saving()" (click)="save()">{{ saving() ? 'Guardando…' : 'Guardar tablero' }}</button> }
         } @else {
           <p class="sidebar-description">{{ widgets().length }} widgets instalados.</p>
@@ -76,4 +72,9 @@
       </aside>
     }
   </div>
+}
+@if (editing() && selected(); as widget) {
+  <app-editor-modal title="Configurar widget" [busy]="saving()" (dismissed)="selectedKey.set('')">
+    <app-widget-editor [widget]="widget" [sensors]="sensors()" [attr.inert]="saving() ? '' : null" (applied)="apply($event)" />
+  </app-editor-modal>
 }

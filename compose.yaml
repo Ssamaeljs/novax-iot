@@ -55,6 +55,7 @@ services:
       MQTT_TEST_PASSWORD: ${MQTT_TEST_PASSWORD:?Configura MQTT_TEST_PASSWORD en .env}
     ports:
       - '127.0.0.1:${NOVAX_MQTT_PORT:-1883}:1883'
+      - '${NOVAX_MQTT_LAN_IP:-127.0.0.1}:${NOVAX_MQTT_PORT:-1883}:1883'
     healthcheck:
       test: ['CMD', '/usr/local/bin/novax-broker-health']
       interval: 5s

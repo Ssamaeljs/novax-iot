@@ -1,3 +1,4 @@
+import { Toast } from '../../shared/ui/toast.service';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -184,6 +185,7 @@ interface Metric {
   `,
 })
 export class OverviewPage implements OnInit {
+  private readonly toast = inject(Toast);
   readonly state = inject(AuthState);
   private readonly api = inject(ApiService);
   private readonly destroyRef = inject(DestroyRef);
@@ -239,7 +241,11 @@ export class OverviewPage implements OnInit {
       available.map((item) =>
         this.api.list(item.path, { page_size: 1, ...item.query }).pipe(
           map((result) => ({ ...item, count: result.pagination.total })),
-          catchError((error) => of({ ...item, error: errorMessage(error) })),
+          catchError((error) => {
+            const message = errorMessage(error);
+            this.toast.fire({ icon: 'error', text: message });
+            return of({ ...item, error: message });
+          }),
         ),
       ),
     )

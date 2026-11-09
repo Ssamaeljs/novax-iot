@@ -36,11 +36,7 @@
       ('reset-password') { Al actualizar tu contraseña se cerrarán todas tus
       sesiones activas. } }
     </p>
-    @if (error()) {
-    <p class="alert" data-status="CRITICAL" role="alert">{{ error() }}</p>
-    } @if (message()) {
-    <p class="alert" data-status="INFO" role="status">{{ message() }}</p>
-    } @if (ready() && mode === 'forgot-password' &&
+ @if (ready() && mode === 'forgot-password' &&
     !capabilities().password_recovery_enabled) {
     <p class="alert" role="status">
       El envío de correos aún no está configurado. Contacta al administrador
